@@ -12,9 +12,10 @@ gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
 local toggleBtn = Instance.new("TextButton", gui)
 toggleBtn.Size = UDim2.new(0, 140, 0, 40)
-toggleBtn.Position = UDim2.new(0, 20, 0, 60)
+toggleBtn.Position = UDim2.new(0.5, 0, 0, 10) -- giữa ngang, cách top 10px
+toggleBtn.AnchorPoint = Vector2.new(0.5, 0)   -- neo giữa theo trục X
 toggleBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-toggleBtn.Text = "Toggle Menu"
+toggleBtn.Text = "mở menu"
 toggleBtn.TextColor3 = Color3.new(1, 1, 1)
 toggleBtn.Font = Enum.Font.GothamBold
 toggleBtn.TextSize = 14
@@ -104,6 +105,7 @@ local function addToggle(parent, name, y)
 	return function() return state end
 end
 
+local FreezeMob = addToggle(tabFrames["ESP"], "false mob", 210)
 local espToggle = addToggle(tabFrames["ESP"], "ESP Master", 10)
 local mobToggle = addToggle(tabFrames["ESP"], "Mob ESP", 50)
 local noRecoilToggle = addToggle(tabFrames["ESP"], "No Recoil", 90)
@@ -408,6 +410,45 @@ if aimbotToggle() then
     end
 end
 
+
+local function FreezeMob(mob, freeze)
+    if not (mob:IsA("Model") and mob:FindFirstChild("Humanoid") and mob:FindFirstChild("HumanoidRootPart")) then return end
+    local hum = mob:FindFirstChild("Humanoid")
+
+    -- Stop or resume animation
+    local animator = hum:FindFirstChildOfClass("Animator")
+    if animator then
+        for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
+            if freeze then
+                track:Stop()
+            else
+                track:Play()
+            end
+        end
+    end
+
+    -- Freeze movement
+    hum.WalkSpeed = freeze and 0 or 16
+    hum.JumpPower = freeze and 0 or 50
+    hum.AutoRotate = not freeze
+    hum.PlatformStand = freeze
+
+    -- Freeze physics
+    for _, part in ipairs(mob:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.Anchored = freeze
+            part.Velocity = Vector3.zero
+            part.RotVelocity = Vector3.zero
+        end
+    end
+
+    -- Disable AI scripts
+    for _, s in ipairs(mob:GetChildren()) do
+        if s:IsA("Script") and s.Name:lower():find("ai") then
+            s.Disabled = freeze
+        end
+    end
+end
 
 local function IsVisible(part)
     local origin = Camera.CFrame.Position

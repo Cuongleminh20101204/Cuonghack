@@ -105,7 +105,7 @@ local function addToggle(parent, name, y)
 	return function() return state end
 end
 
-local FreezeMob = addToggle(tabFrames["ESP"], "false mob", 210)
+
 local espToggle = addToggle(tabFrames["ESP"], "ESP Master", 10)
 local mobToggle = addToggle(tabFrames["ESP"], "Mob ESP", 50)
 local noRecoilToggle = addToggle(tabFrames["ESP"], "No Recoil", 90)
@@ -335,44 +335,6 @@ if aimbotToggle() then
 end
 
 
-local function FreezeMob(mob, freeze)
-    if not (mob:IsA("Model") and mob:FindFirstChild("Humanoid") and mob:FindFirstChild("HumanoidRootPart")) then return end
-    local hum = mob:FindFirstChild("Humanoid")
-
-    -- Stop or resume animation
-    local animator = hum:FindFirstChildOfClass("Animator")
-    if animator then
-        for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
-            if freeze then
-                track:Stop()
-            else
-                track:Play()
-            end
-        end
-    end
-
-    -- Freeze movement
-    hum.WalkSpeed = freeze and 0 or 16
-    hum.JumpPower = freeze and 0 or 50
-    hum.AutoRotate = not freeze
-    hum.PlatformStand = freeze
-
-    -- Freeze physics
-    for _, part in ipairs(mob:GetDescendants()) do
-        if part:IsA("BasePart") then
-            part.Anchored = freeze
-            part.Velocity = Vector3.zero
-            part.RotVelocity = Vector3.zero
-        end
-    end
-
-    -- Disable AI scripts
-    for _, s in ipairs(mob:GetChildren()) do
-        if s:IsA("Script") and s.Name:lower():find("ai") then
-            s.Disabled = freeze
-        end
-    end
-end
 
 local function IsVisible(part)
     local origin = Camera.CFrame.Position
@@ -383,7 +345,6 @@ local function IsVisible(part)
     local result = workspace:Raycast(origin, direction, params)
     return not result or result.Instance:IsDescendantOf(part.Parent)
 end
-
 if espToggle() or mobToggle() then
     playerESPCount = 0
     mobESPCount = 0
@@ -439,8 +400,15 @@ if espToggle() or mobToggle() then
     end
 
     local function handleESP(target, isPlayer)
-        local hum = target.Humanoid
-        local hrp = target.HumanoidRootPart
+        local hum = target:FindFirstChild("Humanoid")
+        local hrp = target:FindFirstChild("HumanoidRootPart")
+        if not hum or not hrp then return end
+
+        if isPlayer then
+            local plr = Players:GetPlayerFromCharacter(target)
+            if plr and LP and plr.Team and LP.Team and plr.Team == LP.Team then return end
+        end
+
         local distance = (hrp.Position - Camera.CFrame.Position).Magnitude
         if distance > maxESPDistance or hum.Health <= 0 or hum.Health == math.huge then return end
 
@@ -515,9 +483,7 @@ if espToggle() or mobToggle() then
 
     for _, p in pairs(Players:GetPlayers()) do
         if p ~= LP and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character:FindFirstChild("Humanoid") then
-            if not (p.Team and LP.Team and p.Team == LP.Team) then
-                handleESP(p.Character, true)
-            end
+            handleESP(p.Character, true)
         end
     end
 
@@ -527,49 +493,49 @@ if espToggle() or mobToggle() then
         end
     end
 
-for _, box in ipairs(workspace:GetChildren()) do
-    if box.Name == "AmmoBox2" and box:IsA("MeshPart") then
-        local pos = box.Position
-        local dist = (pos - Camera.CFrame.Position).Magnitude
-        if dist <= maxESPDistance then
-            if not ESPdata[box] then
-                local txtName = Drawing.new("Text")
-                txtName.Size = 14
-                txtName.Color = Color3.fromRGB(255, 255, 0)
-                txtName.Outline = true
-                txtName.Center = true
+    for _, box in ipairs(workspace:GetChildren()) do
+        if box.Name == "AmmoBox2" and box:IsA("MeshPart") then
+            local pos = box.Position
+            local dist = (pos - Camera.CFrame.Position).Magnitude
+            if dist <= maxESPDistance then
+                if not ESPdata[box] then
+                    local txtName = Drawing.new("Text")
+                    txtName.Size = 14
+                    txtName.Color = Color3.fromRGB(255, 255, 0)
+                    txtName.Outline = true
+                    txtName.Center = true
 
-                local txtDist = Drawing.new("Text")
-                txtDist.Size = 13
-                txtDist.Color = Color3.fromRGB(255, 255, 255)
-                txtDist.Outline = true
-                txtDist.Center = true
+                    local txtDist = Drawing.new("Text")
+                    txtDist.Size = 13
+                    txtDist.Color = Color3.fromRGB(255, 255, 255)
+                    txtDist.Outline = true
+                    txtDist.Center = true
 
-                ESPdata[box] = {
-                    name = txtName,
-                    dist = txtDist
-                }
-            end
+                    ESPdata[box] = {
+                        name = txtName,
+                        dist = txtDist
+                    }
+                end
 
-            local sp, onScreen = Camera:WorldToViewportPoint(pos)
-            local name = ESPdata[box].name
-            local distText = ESPdata[box].dist
+                local sp, onScreen = Camera:WorldToViewportPoint(pos)
+                local name = ESPdata[box].name
+                local distText = ESPdata[box].dist
 
-            name.Text = "[AmmoBox]"
-            name.Position = Vector2.new(sp.X, sp.Y)
-            name.Visible = onScreen
+                name.Text = "[AmmoBox]"
+                name.Position = Vector2.new(sp.X, sp.Y)
+                name.Visible = onScreen
 
-            distText.Text = math.floor(dist) .. "m"
-            distText.Position = Vector2.new(sp.X, sp.Y + 15)
-            distText.Visible = onScreen
-        else
-            if ESPdata[box] then
-                for _, v in pairs(ESPdata[box]) do pcall(function() v:Remove() end) end
-                ESPdata[box] = nil
+                distText.Text = math.floor(dist) .. "m"
+                distText.Position = Vector2.new(sp.X, sp.Y + 15)
+                distText.Visible = onScreen
+            else
+                if ESPdata[box] then
+                    for _, v in pairs(ESPdata[box]) do pcall(function() v:Remove() end) end
+                    ESPdata[box] = nil
+                end
             end
         end
     end
-end
 
     counter.Text = "ESP: " .. playerESPCount .. "  |  MOB: " .. mobESPCount
     counter.Visible = true
@@ -598,7 +564,6 @@ else
     ESPdata = {}
     if counter then counter.Visible = false end
 end
-
 
 if itemPickToggle() then
     local LP = game:GetService("Players").LocalPlayer

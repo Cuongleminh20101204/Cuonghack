@@ -240,7 +240,6 @@ if noRecoilToggle() then
 	end
 end
 
-
 if aimbotToggle() then
     local target = nil
     local closestDist = math.huge
@@ -248,6 +247,10 @@ if aimbotToggle() then
     local fov = 180
     local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
     local aimPos = nil
+
+    -- CONFIG
+    local bulletSpeed = 500 -- stud/s (tùy game hoặc chỉnh theo súng)
+    local gravity = workspace.Gravity -- 196.2 mặc định
 
     local function IsVisible(part, model)
         local origin = Camera.CFrame.Position
@@ -278,11 +281,19 @@ if aimbotToggle() then
                             target = char
                             closestDist = dist3D
 
-                            -- Nếu lệch tâm nhiều thì aim cổ
+                            -- Bullet tracking: tính lead target
+                            local targetVel = root.Velocity
+                            local t_hit = dist3D / bulletSpeed
+                            local futurePos = head.Position + targetVel * t_hit
+
+                            -- Bullet drop compensation
+                            local drop = 0.5 * gravity * (t_hit ^ 2)
+
                             if dist2D > 100 then
-                                aimPos = root.Position + Vector3.new(0, 1.1, 0)  -- Aim cổ
+                                local futureNeck = (root.Position + Vector3.new(0, 1.1, 0)) + targetVel * t_hit
+                                aimPos = futureNeck + Vector3.new(0, drop, 0)
                             else
-                                aimPos = head.Position + Vector3.new(0, 0.05, 0) -- Aim đầu
+                                aimPos = futurePos + Vector3.new(0, drop, 0)
                             end
                         end
                     end
@@ -302,6 +313,7 @@ if aimbotToggle() then
             Camera.CFrame = CFrame.lookAt(camPos, aimPos)
         end)
 
+        -- Xóa recoil
         local recoil = workspace.CurrentCamera:FindFirstChild("RecoilScript")
         if recoil then
             for _, v in ipairs(recoil:GetChildren()) do
@@ -333,7 +345,6 @@ if aimbotToggle() then
         end)
     end
 end
-
 
 
 local function IsVisible(part)
@@ -539,17 +550,6 @@ if espToggle() or mobToggle() then
 
     counter.Text = "ESP: " .. playerESPCount .. "  |  MOB: " .. mobESPCount
     counter.Visible = true
-
-    for angle, _ in pairs(alertMap) do
-        local dotPos = screenCenter + Vector2.new(math.cos(angle), math.sin(angle)) * alertRadius
-        local dot = Drawing.new("Circle")
-        dot.Position = dotPos
-        dot.Radius = 6
-        dot.Filled = true
-        dot.Color = Color3.fromHSV(angle % 1, 1, 1)
-        dot.Visible = true
-        task.delay(0.3, function() dot:Remove() end)
-    end
 
 else
     for ent, ed in pairs(ESPdata) do

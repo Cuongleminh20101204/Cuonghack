@@ -113,6 +113,8 @@ local itemPickToggle = addToggle(tabFrames["ESP"], "Item Pick ESP", 130)
 local aimbotToggle = addToggle(tabFrames["ESP"], "Aimbot Lock", 170)
 local speedToggle = addToggle(tabFrames["Mem/S&F"], "Speed Hack", 10)
 local flyToggle = addToggle(tabFrames["Mem/S&F"], "Fly", 50)
+local noReloadEnabled = true
+local bulletFollowEnabled = true 
 
 toggleBtn.MouseButton1Click:Connect(function()
 	frame.Visible = not frame.Visible
@@ -240,6 +242,52 @@ if noRecoilToggle() then
 	end
 end
 
+
+-- NO RELOAD
+if noReloadEnabled then
+    pcall(function()
+        for _, tool in ipairs(LP.Backpack:GetChildren()) do
+            if tool:IsA("Tool") then
+                if tool:FindFirstChild("ReloadTime") then
+                    tool.ReloadTime.Value = 0
+                end
+                if tool:FindFirstChild("Ammo") and tool:FindFirstChild("MaxAmmo") then
+                    tool.Ammo.Value = tool.MaxAmmo.Value
+                end
+                local reloadFunc = tool:FindFirstChild("Reload")
+                if reloadFunc and reloadFunc:IsA("ModuleScript") then
+                    local m = require(reloadFunc)
+                    for k, v in pairs(m) do
+                        if typeof(v) == "function" then m[k] = function() end end
+                    end
+                end
+            end
+        end
+    end)
+end
+
+
+if bulletFollowEnabled then
+    RunService.Stepped:Connect(function()
+        if target 
+            and target:FindFirstChild("Head") 
+            and target:FindFirstChild("Humanoid") 
+            and target.Humanoid.Health > 0 
+            and target:FindFirstChild("HumanoidRootPart") 
+            and (target:FindFirstChild("HumanoidRootPart").Position - Camera.CFrame.Position).Magnitude <= 500 
+        then
+            local headPos = target.Head.Position
+            for _, b in ipairs(workspace:GetDescendants()) do
+                if b:IsA("BasePart") and b.Name:lower():find("bullet") then
+                    b.CFrame = CFrame.new(b.Position, headPos)
+                    b.Position = headPos
+                end
+            end
+        end
+    end)
+end
+
+
 if aimbotToggle() then
     local target = nil
     local closestDist = math.huge
@@ -247,10 +295,6 @@ if aimbotToggle() then
     local fov = 180
     local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
     local aimPos = nil
-
-    -- CONFIG
-    local bulletSpeed = 500 -- stud/s (tùy game hoặc chỉnh theo súng)
-    local gravity = workspace.Gravity -- 196.2 mặc định
 
     local function IsVisible(part, model)
         local origin = Camera.CFrame.Position
@@ -281,19 +325,11 @@ if aimbotToggle() then
                             target = char
                             closestDist = dist3D
 
-                            -- Bullet tracking: tính lead target
-                            local targetVel = root.Velocity
-                            local t_hit = dist3D / bulletSpeed
-                            local futurePos = head.Position + targetVel * t_hit
-
-                            -- Bullet drop compensation
-                            local drop = 0.5 * gravity * (t_hit ^ 2)
-
+                            -- Nếu lệch tâm nhiều thì aim cổ
                             if dist2D > 100 then
-                                local futureNeck = (root.Position + Vector3.new(0, 1.1, 0)) + targetVel * t_hit
-                                aimPos = futureNeck + Vector3.new(0, drop, 0)
+                                aimPos = root.Position + Vector3.new(0, 1.1, 0)  -- Aim cổ
                             else
-                                aimPos = futurePos + Vector3.new(0, drop, 0)
+                                aimPos = head.Position + Vector3.new(0, 0.05, 0) -- Aim đầu
                             end
                         end
                     end
@@ -313,7 +349,6 @@ if aimbotToggle() then
             Camera.CFrame = CFrame.lookAt(camPos, aimPos)
         end)
 
-        -- Xóa recoil
         local recoil = workspace.CurrentCamera:FindFirstChild("RecoilScript")
         if recoil then
             for _, v in ipairs(recoil:GetChildren()) do
@@ -345,6 +380,7 @@ if aimbotToggle() then
         end)
     end
 end
+
 
 
 local function IsVisible(part)

@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quân - Profile</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+    }
+    :root {
+      --primary-color: #4facfe;
+      --secondary-color: #00f2fe;
+      --card-bg: rgba(255, 255, 255, 0.9);
+      --text-color: #222;
+      --sub-text-color: #555;
+      --progress-bg: #eee;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Poppins", sans-serif;
+      background: linear-gradient(135deg, #1d2b64, #f8cdda);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      position: relative;
+      overflow-x: hidden;
+    }
+    
+    #preloader {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(135deg, #1d2b64, #f8cdda);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 100;
+      transition: opacity 0.5s ease-out;
+    }
+
+    .loader {
+      width: 50px;
+      height: 50px;
+      border: 5px solid #fff;
+      border-bottom-color: transparent;
+      border-radius: 50%;
+      display: inline-block;
+      box-sizing: border-box;
+      animation: rotation 1s linear infinite;
+    }
+
+    .loading-text {
+      font-size: 1.2rem;
+      color: #fff;
+      margin-top: 15px;
+    }
+    
+    @keyframes rotation {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .card-container {
+      opacity: 0;
+      transition: opacity 1s ease-in-out;
+      width: 100%;
+      display: flex;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .card {
+      background: var(--card-bg);
+      backdrop-filter: blur(10px);
+      border-radius: 25px;
+      padding: 40px 30px;
+      max-width: 420px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 15px 35px rgba(0,0,0,0.2);
+      position: relative;
+      overflow: hidden;
+      z-index: 10;
+    }
+
+    .card::before {
+      content: "";
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: conic-gradient(from 90deg, var(--primary-color), var(--secondary-color), var(--primary-color));
+      animation: spin 10s linear infinite;
+      z-index: 0;
+      opacity: 0.15;
+    }
+
+    .card * { position: relative; z-index: 1; }
+
+    .avatar {
+      width: 130px;
+      height: 130px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 5px solid var(--primary-color);
+      margin-bottom: 20px;
+      box-shadow: 0 8px 20px rgba(79,172,254,0.5);
+      transition: 0.4s;
+    }
+
+    .avatar:hover {
+      transform: scale(1.05);
+      box-shadow: 0 0 25px rgba(79,172,254,0.8);
+    }
+
+    h1 {
+      margin: 10px 0 5px;
+      font-size: 28px;
+      color: var(--text-color);
+    }
+    
+    .profile-info {
+        margin-top: 10px;
+    }
+    
+    .profile-info p {
+        margin: 5px 0;
+        font-size: 15px;
+        color: var(--sub-text-color);
+    }
+    
+    .profile-info .counter {
+        margin: 12px 0;
+        font-weight: 600;
+        color: #333;
+        font-size: 14px;
+    }
+
+    .skills {
+      margin-top: 20px;
+      text-align: left;
+    }
+
+    .skills h2 {
+      font-size: 18px;
+      margin-bottom: 10px;
+      color: var(--text-color);
+      text-align: center;
+    }
+
+    .skills ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .skills li {
+      background: #f0f8ff;
+      margin: 6px 0;
+      padding: 10px;
+      border-radius: 10px;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .skills li i { color: var(--primary-color); }
+
+    .socials {
+      margin-top: 25px;
+      display: flex;
+      justify-content: center;
+      gap: 18px;
+    }
+
+    .socials a {
+      text-decoration: none;
+      color: #fff;
+      width: 48px;
+      height: 48px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      border-radius: 50%;
+      font-size: 22px;
+      transition: 0.3s;
+    }
+
+    .socials a.website { background: #333; }
+    .socials a.telegram { background: #0088cc; }
+    .socials a.facebook { background: #1877f2; }
+
+    .socials a:hover {
+      transform: translateY(-5px) scale(1.1);
+      box-shadow: 0 8px 15px rgba(0,0,0,0.3);
+    }
+
+    .code-stats {
+      margin-top: 25px;
+      text-align: left;
+    }
+
+    .code-stats h2 {
+      font-size: 18px;
+      margin-bottom: 10px;
+      color: var(--text-color);
+      text-align: center;
+    }
+
+    .stat-item {
+      display: flex;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .stat-item span {
+      flex: 1;
+      font-weight: 600;
+      color: #444;
+      font-size: 14px;
+    }
+
+    .progress-bar {
+      flex: 3;
+      height: 8px;
+      background: var(--progress-bg);
+      border-radius: 5px;
+      position: relative;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      border-radius: 5px;
+      background: linear-gradient(to right, var(--primary-color), var(--secondary-color));
+      width: 0;
+      transition: width 1s ease-in-out;
+    }
+
+    .progress-bar-text {
+      position: absolute;
+      right: 5px;
+      top: -20px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--sub-text-color);
+    }
+    
+    .location-info {
+        margin-top: 25px;
+        text-align: center;
+    }
+    
+    .location-info h2 {
+      font-size: 18px;
+      margin-bottom: 10px;
+      color: var(--text-color);
+    }
+    
+    .location-icons {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .location-icons img {
+        width: 40px;
+        height: auto;
+        margin: 0 10px;
+        transition: transform 0.3s;
+    }
+    
+    .location-icons img:hover {
+        transform: scale(1.1);
+    }
+
+    .location-text {
+        font-size: 14px;
+        color: var(--sub-text-color);
+        margin-top: 10px;
+    }
+
+    @media (max-width: 480px) {
+      .card {
+        padding: 20px 15px;
+      }
+      h1 {
+        font-size: 24px;
+      }
+      .avatar {
+        width: 100px;
+        height: 100px;
+      }
+      .skills li {
+        padding: 8px;
+      }
+      .socials a {
+        width: 40px;
+        height: 40px;
+        font-size: 18px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="preloader">
+    <div class="loader"></div>
+    <div class="loading-text">Loading...</div>
+  </div>
+
+  <div class="card-container" id="main-content">
+    <div class="card">
+      <img src="https://i.ibb.co/7xdC4yyv/IMG-20250815-233028-541.jpg" alt="Avatar" class="avatar">
+      <h1>Quan (Byy)</h1>
+      <p>Game Dev & Modder | Contact me via Telegram or Facebook</p>
+      
+      <div class="profile-info">
+        <p class="counter" id="counter"></p>
+        <p>Name: Quân</p>
+        <p id="birthday-countdown"></p>
+        <p style="font-style: italic; font-size: 12px; margin-top: 15px;">I don't know, I'm funny</p>
+      </div>
+      
+      <div class="skills">
+        <h2>Skills</h2>
+        <ul>
+          <li><i class="fa-solid fa-code"></i> C / C++</li>
+          <li><i class="fa-solid fa-terminal"></i> C++ (Game Hack / Cheat)</li>
+          <li><i class="fa-brands fa-html5"></i> HTML & Web Dev</li>
+        </ul>
+      </div>
+      
+      <div class="code-stats">
+        <h2>Code Ratio</h2>
+        <div class="stat-item">
+          <span>HTML</span>
+          <div class="progress-bar">
+            <div class="progress-bar-fill" id="html-progress"></div>
+            <span class="progress-bar-text" id="html-text"></span>
+          </div>
+        </div>
+        <div class="stat-item">
+          <span>CSS</span>
+          <div class="progress-bar">
+            <div class="progress-bar-fill" id="css-progress"></div>
+            <span class="progress-bar-text" id="css-text"></span>
+          </div>
+        </div>
+        <div class="stat-item">
+          <span>JavaScript</span>
+          <div class="progress-bar">
+            <div class="progress-bar-fill" id="js-progress"></div>
+            <span class="progress-bar-text" id="js-text"></span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="socials">
+        <a href="https://lcqmod.site" target="_blank" class="website" title="Website"><i class="fa-solid fa-globe"></i></a>
+        <a href="https://t.me/hqcheat" target="_blank" class="telegram" title="Telegram"><i class="fa-brands fa-telegram"></i></a>
+        <a href="https://m.facebook.com/quancheatervn" target="_blank" class="facebook" title="Facebook"><i class="fa-brands fa-facebook-f"></i></a>
+      </div>
+
+      <div class="location-info">
+        <h2>Hometown</h2>
+        <div class="location-icons">
+          <img src="https://upload.wikimedia.org/wikipedia/commons/2/21/Flag_of_Vietnam.svg" alt="Vietnam Flag" title="Vietnam">
+          <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS-8_U7k2RM4sISKTSQt0j07l-Gh2g_FlEaow&usqp=CAU" alt="Kien Giang Flag" title="Kien Giang Province">
+        </div>
+        <p class="location-text">Kien Giang Province, located in the Mekong Delta region of Vietnam, is famous for Phu Quoc and its stunning islands. The local economy is primarily based on marine tourism and fisheries.</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    window.addEventListener('load', () => {
+        const preloader = document.getElementById('preloader');
+        const mainContent = document.getElementById('main-content');
+        
+        setTimeout(() => {
+            preloader.style.opacity = '0';
+            setTimeout(() => {
+                preloader.style.display = 'none';
+                mainContent.style.opacity = '1';
+            }, 500);
+        }, 1000); // Wait for 1 second before fading out
+    });
+
+    const startDate = new Date("2024-10-20");
+    const today = new Date();
+    const diffTime = today - startDate;
+    const days = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    document.getElementById("counter").innerText = "Active since 20/10/2024: " + days + " days";
+
+    const currentYear = today.getFullYear();
+    let birthday = new Date(currentYear, 9, 2);
+    if (today > birthday) {
+      birthday.setFullYear(currentYear + 1);
+    }
+    const diffBirthday = birthday - today;
+    const daysUntilBirthday = Math.ceil(diffBirthday / (1000 * 60 * 60 * 24));
+    const birthdayText = document.getElementById("birthday-countdown");
+    
+    if (daysUntilBirthday === 0) {
+      birthdayText.innerText = "Happy Birthday, Quân!";
+    } else {
+      birthdayText.innerText = daysUntilBirthday + " days until my birthday!";
+    }
+
+    const percentages = {
+      html: 40,
+      css: 50,
+      js: 10
+    };
+
+    document.getElementById('html-progress').style.width = percentages.html + '%';
+    document.getElementById('html-text').innerText = percentages.html + '%';
+    document.getElementById('css-progress').style.width = percentages.css + '%';
+    document.getElementById('css-text').innerText = percentages.css + '%';
+    document.getElementById('js-progress').style.width = percentages.js + '%';
+    document.getElementById('js-text').innerText = percentages.js + '%';
+  </script>
+</body>
+</html>

@@ -724,36 +724,34 @@ local function updateHead(model, state)
     end
 end
 
-local function applyHitboxToModel(model)
+local function applyHitbox(obj)
     RunService.RenderStepped:Connect(function()
-        if hitboxToggle and model:FindFirstChild("Humanoid") then
-            updateHead(model, true)
+        if hitboxToggle and obj and obj:FindFirstChild("Humanoid") then
+            updateHead(obj, true)
         end
     end)
 end
 
 for _, p in ipairs(Players:GetPlayers()) do
-    if p ~= LP and p.Character then
-        applyHitboxToModel(p.Character)
-    end
+    if p ~= LP then applyHitbox(p.Character) end
 end
 
 Players.PlayerAdded:Connect(function(p)
     if p ~= LP then
-        p.CharacterAdded:Connect(function(char)
-            applyHitboxToModel(char)
+        p.CharacterAdded:Connect(function(c)
+            applyHitbox(c)
         end)
     end
 end)
 
-for _, m in ipairs(workspace:GetDescendants()) do
-    if m:IsA("Model") and m:FindFirstChild("Humanoid") and m:FindFirstChild("Head") then
-        applyHitboxToModel(m)
+for _, npc in ipairs(workspace:GetDescendants()) do
+    if npc:IsA("Model") and npc:FindFirstChild("Humanoid") then
+        applyHitbox(npc)
     end
 end
 
-workspace.DescendantAdded:Connect(function(m)
-    if m:IsA("Model") and m:FindFirstChild("Humanoid") and m:FindFirstChild("Head") then
-        applyHitboxToModel(m)
+workspace.DescendantAdded:Connect(function(d)
+    if d:IsA("Model") and d:FindFirstChild("Humanoid") then
+        applyHitbox(d)
     end
 end)

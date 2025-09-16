@@ -267,30 +267,6 @@ if noReloadEnabled then
 end
 
 
-
-local hitboxToggle = true
-
-local function hitbox(state)
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= Players.LocalPlayer and p.Character then
-            local head = p.Character:FindFirstChild("Head")
-            local root = p.Character:FindFirstChild("HumanoidRootPart")
-            if head then
-                head.Size = state and Vector3.new(10,10,10) or Vector3.new(2,1,1)
-                head.CanCollide = false
-                head.Massless = true
-            end
-            if root then
-                root.Size = state and Vector3.new(10,10,10) or Vector3.new(2,2,1)
-                root.CanCollide = false
-                root.Massless = true
-            end
-        end
-    end
-end
-
-
-
 if bulletFollowEnabled then
     RunService.Stepped:Connect(function()
         if target 
@@ -416,9 +392,8 @@ local function IsVisible(part)
     local result = workspace:Raycast(origin, direction, params)
     return not result or result.Instance:IsDescendantOf(part.Parent)
 end
-if espToggle() or mobToggle() then
+if espToggle() then
     playerESPCount = 0
-    mobESPCount = 0
 
     for _, p in pairs(Players:GetPlayers()) do
         if p ~= LP and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character:FindFirstChild("Humanoid") then
@@ -429,17 +404,6 @@ if espToggle() or mobToggle() then
                 if distance <= maxESPDistance and hum.Health > 0 and hum.Health < math.huge then
                     playerESPCount += 1
                 end
-            end
-        end
-    end
-
-    for _, mob in pairs(workspace:GetDescendants()) do
-        if mob:IsA("Model") and mob:FindFirstChild("Humanoid") and mob:FindFirstChild("HumanoidRootPart") then
-            local hum = mob.Humanoid
-            local hrp = mob.HumanoidRootPart
-            local distance = (hrp.Position - Camera.CFrame.Position).Magnitude
-            if distance <= maxESPDistance and hum.Health > 0 and hum.Health < math.huge then
-                mobESPCount += 1
             end
         end
     end
@@ -470,15 +434,13 @@ if espToggle() or mobToggle() then
         end
     end
 
-    local function handleESP(target, isPlayer)
+    local function handleESP(target)
         local hum = target:FindFirstChild("Humanoid")
         local hrp = target:FindFirstChild("HumanoidRootPart")
         if not hum or not hrp then return end
 
-        if isPlayer then
-            local plr = Players:GetPlayerFromCharacter(target)
-            if plr and LP and plr.Team and LP.Team and plr.Team == LP.Team then return end
-        end
+        local plr = Players:GetPlayerFromCharacter(target)
+        if plr and LP and plr.Team and LP.Team and plr.Team == LP.Team then return end
 
         local distance = (hrp.Position - Camera.CFrame.Position).Magnitude
         if distance > maxESPDistance or hum.Health <= 0 or hum.Health == math.huge then return end
@@ -487,8 +449,7 @@ if espToggle() or mobToggle() then
         local dir = (hrp.Position - Camera.CFrame.Position).Unit
         local dot = dir:Dot(Camera.CFrame.LookVector)
 
-        local toggleCheck = isPlayer and espToggle() or mobToggle()
-        if toggleCheck and onScreen and dot > 0 then
+        if espToggle() and onScreen and dot > 0 then
             if not ESPdata[target] then initESP(target) end
             local ed = ESPdata[target]
             local visible = IsVisible(hrp)
@@ -528,22 +489,18 @@ if espToggle() or mobToggle() then
             ed.dist.Text = math.floor(distance) .. "m"
             ed.dist.Visible = true
 
-            if isPlayer then
-                local joints = getJoints(target)
-                for i, pair in ipairs(skeletonLines) do
-                    local a, b = joints[pair[1]], joints[pair[2]]
-                    local sl = ed.skeleton[i]
-                    if a and b then
-                        sl.From = a
-                        sl.To = b
-                        sl.Color = color
-                        sl.Visible = true
-                    else
-                        sl.Visible = false
-                    end
+            local joints = getJoints(target)
+            for i, pair in ipairs(skeletonLines) do
+                local a, b = joints[pair[1]], joints[pair[2]]
+                local sl = ed.skeleton[i]
+                if a and b then
+                    sl.From = a
+                    sl.To = b
+                    sl.Color = color
+                    sl.Visible = true
+                else
+                    sl.Visible = false
                 end
-            else
-                for _, sl in ipairs(ed.skeleton) do sl.Visible = false end
             end
         else
             local angle = math.atan2(dir.Z, dir.X)
@@ -554,13 +511,7 @@ if espToggle() or mobToggle() then
 
     for _, p in pairs(Players:GetPlayers()) do
         if p ~= LP and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character:FindFirstChild("Humanoid") then
-            handleESP(p.Character, true)
-        end
-    end
-
-    for _, mob in pairs(workspace:GetDescendants()) do
-        if mob:IsA("Model") and mob:FindFirstChild("Humanoid") and mob:FindFirstChild("HumanoidRootPart") then
-            handleESP(mob, false)
+            handleESP(p.Character)
         end
     end
 
@@ -608,7 +559,7 @@ if espToggle() or mobToggle() then
         end
     end
 
-    counter.Text = "ESP: " .. playerESPCount .. "  |  MOB: " .. mobESPCount
+    counter.Text = "ESP: " .. playerESPCount
     counter.Visible = true
 
 else
@@ -624,7 +575,6 @@ else
     ESPdata = {}
     if counter then counter.Visible = false end
 end
-
 if itemPickToggle() then
     local LP = game:GetService("Players").LocalPlayer
     local Mouse = LP:GetMouse()
@@ -762,10 +712,76 @@ end)
 
 for _, v in pairs(getconnections(LP.Idled)) do v:Disable() end
 
-UserInputService.InputBegan:Connect(function(i,g)
-    if g then return end
-    if i.KeyCode == Enum.KeyCode.H then
-        hitboxToggle = not hitboxToggle
-        hitbox(hitboxToggle)
+local hitboxToggle = true
+local espObjects = {}
+
+local function clearESP(p)
+    if espObjects[p] then
+        for _, obj in ipairs(espObjects[p]) do obj:Remove() end
+        espObjects[p] = nil
     end
+end
+
+local function updateHitbox(p, state)
+    if not p.Character then return end
+    local parts = {"Head","HumanoidRootPart"}
+    for _, name in ipairs(parts) do
+        local part = p.Character:FindFirstChild(name)
+        if part then
+            part.Size = state and Vector3.new(50,50,50) or Vector3.new(2,2,1)
+            part.CanCollide = false
+            part.Massless = true
+        end
+    end
+end
+
+local function addESP(p)
+    clearESP(p)
+    espObjects[p] = {Drawing.new("Square")}
+    local box = espObjects[p][1]
+    box.Color = Color3.fromRGB(255,0,0)
+    box.Thickness = 2
+    box.Filled = false
+    RunService.RenderStepped:Connect(function()
+        if not p.Character or not p.Character:FindFirstChild("HumanoidRootPart") then
+            box.Visible = false
+            return
+        end
+        updateHitbox(p, hitboxToggle)
+        local hrp = p.Character.HumanoidRootPart
+        local size = hrp.Size * 2
+        local corners = {
+            hrp.CFrame * Vector3.new(size.X/2,size.Y/2,size.Z/2),
+            hrp.CFrame * Vector3.new(-size.X/2,size.Y/2,size.Z/2),
+            hrp.CFrame * Vector3.new(size.X/2,-size.Y/2,size.Z/2),
+            hrp.CFrame * Vector3.new(-size.X/2,-size.Y/2,size.Z/2)
+        }
+        local minX, minY, maxX, maxY = math.huge, math.huge, -math.huge, -math.huge
+        local vis = false
+        for _, c in ipairs(corners) do
+            local pos, onScreen = Camera:WorldToViewportPoint(c)
+            if onScreen then
+                vis = true
+                minX, maxX = math.min(minX,pos.X), math.max(maxX,pos.X)
+                minY, maxY = math.min(minY,pos.Y), math.max(maxY,pos.Y)
+            end
+        end
+        if vis then
+            box.Visible = true
+            box.Position = Vector2.new(minX,minY)
+            box.Size = Vector2.new(maxX-minX,maxY-minY)
+        else
+            box.Visible = false
+        end
+    end)
+end
+
+for _, p in ipairs(Players:GetPlayers()) do
+    if p ~= Players.LocalPlayer then addESP(p) end
+end
+
+Players.PlayerAdded:Connect(function(p)
+    if p ~= Players.LocalPlayer then addESP(p) end
 end)
+
+Players.PlayerRemoving:Connect(function(p) clearESP(p) end)

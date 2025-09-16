@@ -744,39 +744,51 @@ for _, v in pairs(getconnections(LP.Idled)) do v:Disable() end
 
 
 local hitboxToggle = true
+local hitboxSize = Vector3.new(50, 50, 50)
 
-local function applyFakeHitbox(model)
+local function applyHitbox(model)
     local head = model:FindFirstChild("Head")
     local humanoid = model:FindFirstChild("Humanoid")
-    if head and humanoid and humanoid.Health > 0 and not head:FindFirstChild("FakeHitbox") then
-        local fake = Instance.new("Part")
-        fake.Name = "FakeHitbox"
-        fake.Size = Vector3.new(500, 500, 500) -- hitbox to hơn
-        fake.Transparency = 1 -- vô hình
-        fake.CanCollide = false
-        fake.Massless = true
-        fake.Anchored = false
-        fake.Parent = head
+    if head and humanoid and humanoid.Health > 0 then
+        -- Kiểm tra xem đã tạo hitbox chưa
+        local hitbox = head:FindFirstChild("HitboxPart")
+        if not hitbox then
+            hitbox = Instance.new("Part")
+            hitbox.Name = "HitboxPart"
+            hitbox.Size = hitboxSize
+            hitbox.Transparency = 1 -- hoàn toàn vô hình
+            hitbox.CanCollide = false
+            hitbox.Massless = true
+            hitbox.Anchored = false
 
-        local weld = Instance.new("WeldConstraint")
-        weld.Part0 = head
-        weld.Part1 = fake
-        weld.Parent = fake
+            -- Gắn hitbox vào Head bằng Weld
+            local weld = Instance.new("WeldConstraint")
+            weld.Part0 = hitbox
+            weld.Part1 = head
+            weld.Parent = hitbox
+
+            hitbox.Parent = head
+            hitbox.CFrame = head.CFrame
+        else
+            hitbox.Size = hitboxSize -- cập nhật lại nếu có thay đổi
+        end
     end
 end
 
 RunService.RenderStepped:Connect(function()
     if not hitboxToggle then return end
-    
+
+    -- Player
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= LP and p.Character and p.Team ~= LP.Team then
-            applyFakeHitbox(p.Character)
+            applyHitbox(p.Character)
         end
     end
 
+    -- NPC
     for _, npc in ipairs(workspace:GetChildren()) do
         if npc:IsA("Model") and npc:FindFirstChild("Humanoid") and npc:FindFirstChild("Head") then
-            applyFakeHitbox(npc)
+            applyHitbox(npc)
         end
     end
 end)

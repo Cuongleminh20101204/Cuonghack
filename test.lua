@@ -742,29 +742,3 @@ for _, v in pairs(getconnections(LP.Idled)) do v:Disable() end
 -- end)
 
 
-local hitboxToggle = true
-local function updateHead(model)
-    local head = model:FindFirstChild("Head")
-    local humanoid = model:FindFirstChild("Humanoid")
-    if head and humanoid and humanoid.Health > 0 then
-        head.Size = Vector3.new(70,50,70)
-        head.CanCollide = false
-        head.Massless = true
-    end
-end
-
-RunService.RenderStepped:Connect(function()
-    if not hitboxToggle then return end
-    
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= LP and p.Character and p.Team ~= LP.Team then
-            updateHead(p.Character)
-        end
-    end
-
-    for _, npc in ipairs(workspace:GetChildren()) do
-        if npc:IsA("Model") and npc:FindFirstChild("Humanoid") and npc:FindFirstChild("Head") then
-            updateHead(npc)
-        end
-    end
-end)

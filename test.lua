@@ -715,43 +715,28 @@ for _, v in pairs(getconnections(LP.Idled)) do v:Disable() end
 
 local hitboxToggle = true
 
-local function updateHead(model, state)
+local function updateHead(model)
     local head = model:FindFirstChild("Head")
-    if head then
-        head.Size = state and Vector3.new(50,50,50) or Vector3.new(2,1,1)
+    local humanoid = model:FindFirstChild("Humanoid")
+    if head and humanoid and humanoid.Health > 0 then
+        head.Size = Vector3.new(50,50,50)
         head.CanCollide = false
         head.Massless = true
     end
 end
 
-local function applyHitbox(obj)
-    RunService.RenderStepped:Connect(function()
-        if hitboxToggle and obj and obj:FindFirstChild("Humanoid") then
-            updateHead(obj, true)
+RunService.RenderStepped:Connect(function()
+    if not hitboxToggle then return end
+    
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LP and p.Character then
+            updateHead(p.Character)
         end
-    end)
-end
-
-for _, p in ipairs(Players:GetPlayers()) do
-    if p ~= LP then applyHitbox(p.Character) end
-end
-
-Players.PlayerAdded:Connect(function(p)
-    if p ~= LP then
-        p.CharacterAdded:Connect(function(c)
-            applyHitbox(c)
-        end)
     end
-end)
 
-for _, npc in ipairs(workspace:GetDescendants()) do
-    if npc:IsA("Model") and npc:FindFirstChild("Humanoid") then
-        applyHitbox(npc)
-    end
-end
-
-workspace.DescendantAdded:Connect(function(d)
-    if d:IsA("Model") and d:FindFirstChild("Humanoid") then
-        applyHitbox(d)
+    for _, npc in ipairs(workspace:GetChildren()) do
+        if npc:IsA("Model") and npc:FindFirstChild("Humanoid") and npc:FindFirstChild("Head") then
+            updateHead(npc)
+        end
     end
 end)

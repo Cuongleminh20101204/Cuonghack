@@ -712,76 +712,31 @@ end)
 
 for _, v in pairs(getconnections(LP.Idled)) do v:Disable() end
 
+
 local hitboxToggle = true
-local espObjects = {}
 
-local function clearESP(p)
-    if espObjects[p] then
-        for _, obj in ipairs(espObjects[p]) do obj:Remove() end
-        espObjects[p] = nil
-    end
-end
-
-local function updateHitbox(p, state)
+local function updateHead(p, state)
     if not p.Character then return end
-    local parts = {"Head","HumanoidRootPart"}
-    for _, name in ipairs(parts) do
-        local part = p.Character:FindFirstChild(name)
-        if part then
-            part.Size = state and Vector3.new(50,50,50) or Vector3.new(2,2,1)
-            part.CanCollide = false
-            part.Massless = true
-        end
+    local head = p.Character:FindFirstChild("Head")
+    if head then
+        head.Size = state and Vector3.new(50,50,50) or Vector3.new(2,1,1)
+        head.CanCollide = false
+        head.Massless = true
     end
 end
 
-local function addESP(p)
-    clearESP(p)
-    espObjects[p] = {Drawing.new("Square")}
-    local box = espObjects[p][1]
-    box.Color = Color3.fromRGB(255,0,0)
-    box.Thickness = 2
-    box.Filled = false
+local function applyHitbox(p)
     RunService.RenderStepped:Connect(function()
-        if not p.Character or not p.Character:FindFirstChild("HumanoidRootPart") then
-            box.Visible = false
-            return
-        end
-        updateHitbox(p, hitboxToggle)
-        local hrp = p.Character.HumanoidRootPart
-        local size = hrp.Size * 2
-        local corners = {
-            hrp.CFrame * Vector3.new(size.X/2,size.Y/2,size.Z/2),
-            hrp.CFrame * Vector3.new(-size.X/2,size.Y/2,size.Z/2),
-            hrp.CFrame * Vector3.new(size.X/2,-size.Y/2,size.Z/2),
-            hrp.CFrame * Vector3.new(-size.X/2,-size.Y/2,size.Z/2)
-        }
-        local minX, minY, maxX, maxY = math.huge, math.huge, -math.huge, -math.huge
-        local vis = false
-        for _, c in ipairs(corners) do
-            local pos, onScreen = Camera:WorldToViewportPoint(c)
-            if onScreen then
-                vis = true
-                minX, maxX = math.min(minX,pos.X), math.max(maxX,pos.X)
-                minY, maxY = math.min(minY,pos.Y), math.max(maxY,pos.Y)
-            end
-        end
-        if vis then
-            box.Visible = true
-            box.Position = Vector2.new(minX,minY)
-            box.Size = Vector2.new(maxX-minX,maxY-minY)
-        else
-            box.Visible = false
+        if p ~= LP and p.Character and p.Character:FindFirstChild("Humanoid") and hitboxToggle then
+            updateHead(p, true)
         end
     end)
 end
 
 for _, p in ipairs(Players:GetPlayers()) do
-    if p ~= Players.LocalPlayer then addESP(p) end
+    if p ~= LP then applyHitbox(p) end
 end
 
 Players.PlayerAdded:Connect(function(p)
-    if p ~= Players.LocalPlayer then addESP(p) end
+    if p ~= LP then applyHitbox(p) end
 end)
-
-Players.PlayerRemoving:Connect(function(p) clearESP(p) end)

@@ -109,6 +109,7 @@ end
 local espToggle = addToggle(tabFrames["ESP"], "ESP Master", 10)
 local mobToggle = addToggle(tabFrames["ESP"], "Mob ESP", 50)
 local noRecoilToggle = addToggle(tabFrames["ESP"], "No Recoil", 90)
+local hitboxToggle = addToggle(tabFrames["ESP"], "Hitbox Head", 110)
 local itemPickToggle = addToggle(tabFrames["ESP"], "Item Pick ESP", 130)
 local aimbotToggle = addToggle(tabFrames["ESP"], "Aimbot Lock", 170)
 local speedToggle = addToggle(tabFrames["Mem/S&F"], "Speed Hack", 10)
@@ -712,9 +713,6 @@ end)
 
 for _, v in pairs(getconnections(LP.Idled)) do v:Disable() end
 
-
-local hitboxToggle = true
-
 local function updateHead(model)
     local head = model:FindFirstChild("Head")
     local humanoid = model:FindFirstChild("Humanoid")
@@ -727,15 +725,15 @@ end
 
 RunService.RenderStepped:Connect(function()
     if not hitboxToggle then return end
-    
+
     for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= LP and p.Character and p.Team ~= LP.Team then
+        if p ~= LP and p.Character and p.Team and LP.Team and p.Team ~= LP.Team then
             updateHead(p.Character)
         end
     end
 
     for _, npc in ipairs(workspace:GetChildren()) do
-        if npc:IsA("Model") and npc:FindFirstChild("Humanoid") and npc:FindFirstChild("Head") then
+        if npc:IsA("Model") and npc:FindFirstChild("Humanoid") and npc:FindFirstChild("Head") and not Players:GetPlayerFromCharacter(npc) then
             updateHead(npc)
         end
     end

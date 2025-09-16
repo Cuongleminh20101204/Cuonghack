@@ -742,39 +742,50 @@ for _, v in pairs(getconnections(LP.Idled)) do v:Disable() end
 -- end)
 
 
-
 local hitboxToggle = true
-local hitboxSize = Vector3.new(50, 50, 50)
+local hitboxSize = Vector3.new(70, 70, 70) -- hộp hitbox 70
 
-local function applyHitbox(model)
+-- Hàm kiểm tra có bị che không (raycast)
+local function isVisible(part)
+    local origin = Camera.CFrame.Position
+    local direction = (part.Position - origin).Unit * (part.Position - origin).Magnitude
+    local params = RaycastParams.new()
+    params.FilterType = Enum.RaycastFilterType.Blacklist
+    params.FilterDescendantsInstances = {LP.Character}
+
+    local result = workspace:Raycast(origin, direction, params)
+    if result then
+        return (result.Instance:IsDescendantOf(part.Parent))
+    end
+    return true
+end
+
+-- Tạo chams box (hitbox ảo)
+local function applyCham(model)
     local head = model:FindFirstChild("Head")
     local humanoid = model:FindFirstChild("Humanoid")
 
     if head and humanoid and humanoid.Health > 0 then
-        -- Giữ nguyên ngoại hình bằng mesh
-        local mesh = head:FindFirstChildOfClass("SpecialMesh")
-        if mesh then
-            mesh.Scale = mesh.Scale * (head.Size.X / hitboxSize.X)
-        end
-
-        -- Mở rộng hitbox
-        head.Size = hitboxSize
-        head.CanCollide = false
-        head.Massless = true
-
-        -- Wall chams box
-        if not head:FindFirstChild("ChamBox") then
-            local adorn = Instance.new("BoxHandleAdornment")
+        local adorn = head:FindFirstChild("ChamBox")
+        if not adorn then
+            adorn = Instance.new("BoxHandleAdornment")
             adorn.Name = "ChamBox"
             adorn.Size = hitboxSize
             adorn.Adornee = head
-            adorn.AlwaysOnTop = true -- hiển thị xuyên tường
+            adorn.AlwaysOnTop = true
             adorn.ZIndex = 10
             adorn.Transparency = 0.4
-            adorn.Color3 = Color3.fromRGB(255, 20, 147) -- Hồng đậm
+            adorn.Color3 = Color3.fromRGB(255, 20, 147) -- mặc định hồng
             adorn.Parent = head
         else
-            head.ChamBox.Size = hitboxSize
+            adorn.Size = hitboxSize -- update size 70 nếu đã tồn tại
+        end
+
+        -- Update màu theo raycast
+        if isVisible(head) then
+            adorn.Color3 = Color3.fromRGB(0, 255, 0) -- xanh nếu clear
+        else
+            adorn.Color3 = Color3.fromRGB(255, 20, 147) -- hồng nếu bị che
         end
     end
 end
@@ -785,14 +796,14 @@ RunService.RenderStepped:Connect(function()
     -- Player
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= LP and p.Character and p.Team ~= LP.Team then
-            applyHitbox(p.Character)
+            applyCham(p.Character)
         end
     end
 
     -- NPC
     for _, npc in ipairs(workspace:GetChildren()) do
         if npc:IsA("Model") and npc:FindFirstChild("Humanoid") and npc:FindFirstChild("Head") then
-            applyHitbox(npc)
+            applyCham(npc)
         end
     end
 end)

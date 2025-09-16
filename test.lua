@@ -743,26 +743,19 @@ for _, v in pairs(getconnections(LP.Idled)) do v:Disable() end
 
 
 local hitboxToggle = true
-local hitboxSize = Vector3.new(200,200,200)
-local normalSize = Vector3.new(2,1,1)
-
 local function updateHead(model)
     local head = model:FindFirstChild("Head")
     local humanoid = model:FindFirstChild("Humanoid")
     if head and humanoid and humanoid.Health > 0 then
-        if head.Size ~= hitboxSize then
-            head.Size = hitboxSize
-            head.CanCollide = false
-            head.Massless = true
-        end
-    elseif head and head.Size ~= normalSize then
-        head.Size = normalSize
+        head.Size = Vector3.new(200,200,200)
+        head.CanCollide = false
+        head.Massless = true
     end
 end
 
 RunService.RenderStepped:Connect(function()
     if not hitboxToggle then return end
-
+    
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= LP and p.Character and p.Team ~= LP.Team then
             updateHead(p.Character)

@@ -113,7 +113,7 @@ local itemPickToggle = addToggle(tabFrames["ESP"], "Item Pick ESP", 130)
 local aimbotToggle = addToggle(tabFrames["ESP"], "Aimbot Lock", 170)
 local speedToggle = addToggle(tabFrames["Mem/S&F"], "Speed Hack", 10)
 local flyToggle = addToggle(tabFrames["Mem/S&F"], "Fly", 50)
-local hitboxToggle = addToggle(tabFrames["ESP"], "Hitbox Head", 170)
+--local hitboxToggle = addToggle(tabFrames["ESP"], "Hitbox Head", 170)
 local noReloadEnabled = true
 local bulletFollowEnabled = true 
 
@@ -714,14 +714,54 @@ end)
 for _, v in pairs(getconnections(LP.Idled)) do v:Disable() end
 
 
+-- local hitboxToggle = true
+-- local function updateHead(model)
+--     local head = model:FindFirstChild("Head")
+--     local humanoid = model:FindFirstChild("Humanoid")
+--     if head and humanoid and humanoid.Health > 0 then
+--         head.Size = Vector3.new(50,50,50)
+--         head.CanCollide = false
+--         head.Massless = true
+--     end
+-- end
 
-local function updateHead(model)
+-- RunService.RenderStepped:Connect(function()
+--     if not hitboxToggle then return end
+    
+--     for _, p in ipairs(Players:GetPlayers()) do
+--         if p ~= LP and p.Character and p.Team ~= LP.Team then
+--             updateHead(p.Character)
+--         end
+--     end
+
+--     for _, npc in ipairs(workspace:GetChildren()) do
+--         if npc:IsA("Model") and npc:FindFirstChild("Humanoid") and npc:FindFirstChild("Head") then
+--             updateHead(npc)
+--         end
+--     end
+-- end)
+
+
+
+local hitboxToggle = true
+
+local function applyFakeHitbox(model)
     local head = model:FindFirstChild("Head")
     local humanoid = model:FindFirstChild("Humanoid")
-    if head and humanoid and humanoid.Health > 0 then
-        head.Size = Vector3.new(50,50,50)
-        head.CanCollide = false
-        head.Massless = true
+    if head and humanoid and humanoid.Health > 0 and not head:FindFirstChild("FakeHitbox") then
+        local fake = Instance.new("Part")
+        fake.Name = "FakeHitbox"
+        fake.Size = Vector3.new(500, 500, 500) -- hitbox to hơn
+        fake.Transparency = 1 -- vô hình
+        fake.CanCollide = false
+        fake.Massless = true
+        fake.Anchored = false
+        fake.Parent = head
+
+        local weld = Instance.new("WeldConstraint")
+        weld.Part0 = head
+        weld.Part1 = fake
+        weld.Parent = fake
     end
 end
 
@@ -730,13 +770,13 @@ RunService.RenderStepped:Connect(function()
     
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= LP and p.Character and p.Team ~= LP.Team then
-            updateHead(p.Character)
+            applyFakeHitbox(p.Character)
         end
     end
 
     for _, npc in ipairs(workspace:GetChildren()) do
         if npc:IsA("Model") and npc:FindFirstChild("Humanoid") and npc:FindFirstChild("Head") then
-            updateHead(npc)
+            applyFakeHitbox(npc)
         end
     end
 end)

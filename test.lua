@@ -747,7 +747,7 @@ local function updateHead(model)
     local head = model:FindFirstChild("Head")
     local humanoid = model:FindFirstChild("Humanoid")
     if head and humanoid and humanoid.Health > 0 then
-        head.Size = Vector3.new(200,200,200)
+        head.Size = Vector3.new(100,100,100)
         head.CanCollide = false
         head.Massless = true
     end

@@ -195,6 +195,7 @@ RunService.RenderStepped:Connect(function()
 		end
 	end
 	
+
 local function IsVisible(part)
     local origin = Camera.CFrame.Position
     local targetPosition = part.Position
@@ -205,197 +206,91 @@ local function IsVisible(part)
     raycastParams.FilterDescendantsInstances = {LP.Character}
 
     local result = workspace:Raycast(origin, direction, raycastParams)
-    
     return not result or result.Instance:IsDescendantOf(part.Parent)
 end
 
-
-if noRecoilToggle() then
-	local cam = workspace.CurrentCamera
-	if cam and cam:FindFirstChild("RecoilScript") then
-		for _, v in ipairs(cam.RecoilScript:GetChildren()) do
-			if v:IsA("NumberValue") or v:IsA("Vector3Value") then
-				v.Value = 0
-			end
-		end
-	end
-
-	for _, tool in ipairs(LP.Backpack:GetChildren()) do
-		if tool:IsA("Tool") and tool:FindFirstChild("Recoil") then
-			for _, obj in ipairs(tool:GetDescendants()) do
-				if obj:IsA("NumberValue") or obj:IsA("Vector3Value") then
-					obj.Value = 0
-				end
-			end
-		end
-	end
-
-	local char = LP.Character
-	if char then
-		for _, obj in ipairs(char:GetDescendants()) do
-			if obj:IsA("NumberValue") or obj:IsA("Vector3Value") then
-				if obj.Name:lower():find("recoil") then
-					obj.Value = 0
-				end
-			end
-		end
-	end
-end
-
-
--- NO RELOAD
-if noReloadEnabled then
-    pcall(function()
-        for _, tool in ipairs(LP.Backpack:GetChildren()) do
-            if tool:IsA("Tool") then
-                if tool:FindFirstChild("ReloadTime") then
-                    tool.ReloadTime.Value = 0
-                end
-                if tool:FindFirstChild("Ammo") and tool:FindFirstChild("MaxAmmo") then
-                    tool.Ammo.Value = tool.MaxAmmo.Value
-                end
-                local reloadFunc = tool:FindFirstChild("Reload")
-                if reloadFunc and reloadFunc:IsA("ModuleScript") then
-                    local m = require(reloadFunc)
-                    for k, v in pairs(m) do
-                        if typeof(v) == "function" then m[k] = function() end end
-                    end
-                end
+-- ✅ No Recoil
+local function NoRecoil()
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("NumberValue") or obj:IsA("Vector3Value") then
+            if obj.Name:lower():find("recoil") then
+                obj.Value = 0
             end
         end
-    end)
-end
-
-
-if bulletFollowEnabled then
-    RunService.Stepped:Connect(function()
-        if target 
-            and target:FindFirstChild("Head") 
-            and target:FindFirstChild("Humanoid") 
-            and target.Humanoid.Health > 0 
-            and target:FindFirstChild("HumanoidRootPart") 
-            and (target:FindFirstChild("HumanoidRootPart").Position - Camera.CFrame.Position).Magnitude <= 500 
-        then
-            local headPos = target.Head.Position
-            for _, b in ipairs(workspace:GetDescendants()) do
-                if b:IsA("BasePart") and b.Name:lower():find("bullet") then
-                    b.CFrame = CFrame.new(b.Position, headPos)
-                    b.Position = headPos
-                end
-            end
-        end
-    end)
-end
-
-
-if aimbotToggle() then
-    local target = nil
-    local closestDist = math.huge
-    local maxDist = 250
-    local fov = 180
-    local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
-    local aimPos = nil
-    local lastTarget = nil
-
-    local function IsVisible(part, model)
-        local origin = Camera.CFrame.Position
-        local direction = (part.Position - origin)
-        local params = RaycastParams.new()
-        params.FilterType = Enum.RaycastFilterType.Blacklist
-        params.FilterDescendantsInstances = {LP.Character, Camera}
-        local result = workspace:Raycast(origin, direction, params)
-        return not result or result.Instance:IsDescendantOf(model)
     end
+    for _, tool in ipairs(LP.Backpack:GetChildren()) do
+        for _, obj in ipairs(tool:GetDescendants()) do
+            if obj:IsA("NumberValue") or obj:IsA("Vector3Value") then
+                if obj.Name:lower():find("recoil") then
+                    obj.Value = 0
+                end
+            end
+        end
+    end
+end
+
+-- ✅ No Reload
+local function NoReload()
+    for _, tool in ipairs(LP.Backpack:GetChildren()) do
+        if tool:IsA("Tool") then
+            if tool:FindFirstChild("ReloadTime") then
+                tool.ReloadTime.Value = 0
+            end
+            if tool:FindFirstChild("Ammo") and tool:FindFirstChild("MaxAmmo") then
+                tool.Ammo.Value = tool.MaxAmmo.Value
+            end
+        end
+    end
+end
+
+-- ✅ Bullet Follow
+local function BulletFollow(target)
+    if not target then return end
+    if not target:FindFirstChild("Head") then return end
+
+    local headPos = target.Head.Position
+    for _, b in ipairs(workspace:GetDescendants()) do
+        if b:IsA("BasePart") and b.Name:lower():find("bullet") then
+            b.CFrame = CFrame.new(b.Position, headPos)
+            b.Position = headPos
+        end
+    end
+end
+
+-- ✅ Aimbot (có check Visible)
+local function GetClosestTarget(maxDist, fov)
+    local closest = nil
+    local dist = maxDist or 200
+    local fov = fov or 150
+    local center = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
 
     for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= LP and p.Team ~= LP.Team and p.Character then
-            local char = p.Character
-            local head = char:FindFirstChild("Head")
-            local root = char:FindFirstChild("HumanoidRootPart")
-            local hum = char:FindFirstChild("Humanoid")
-
-            if head and root and hum and hum.Health > 0 and IsVisible(head, char) then
-                local dist3D = (head.Position - Camera.CFrame.Position).Magnitude
-                if dist3D <= maxDist then
-                    local screenPos, onScreen = Camera:WorldToViewportPoint(head.Position)
-                    local dist2D = (Vector2.new(screenPos.X, screenPos.Y) - center).Magnitude
-                    local dot = (head.Position - Camera.CFrame.Position).Unit:Dot(Camera.CFrame.LookVector)
-
-                    if onScreen and dot > 0 and dist2D <= fov then
-                        if dist3D < closestDist then
-                            target = char
-                            closestDist = dist3D
-
-                            if dist2D > 100 then
-                                aimPos = root.Position + Vector3.new(0, 1.1, 0)
-                            else
-                                aimPos = head.Position + Vector3.new(0, 0.05, 0)
-                            end
-                        end
-                    end
+        if p ~= LP and p.Character and p.Character:FindFirstChild("Head") then
+            local head = p.Character.Head
+            local pos, onScreen = Camera:WorldToViewportPoint(head.Position)
+            if onScreen and IsVisible(head) then
+                local mag = (Vector2.new(pos.X,pos.Y) - center).Magnitude
+                if mag < fov and mag < dist then
+                    dist = mag
+                    closest = p
                 end
             end
         end
     end
-
-    RunService:UnbindFromRenderStep("ForceAimbotLock")
-    if target and aimPos then
-        RunService:BindToRenderStep("ForceAimbotLock", Enum.RenderPriority.Camera.Value + 1, function()
-            if not target or not target:FindFirstChild("Humanoid") or target.Humanoid.Health <= 0 then
-                if lastTarget and lastTarget:FindFirstChild("Head") then
-                    lastTarget.Head.Size = Vector3.new(2, 1, 1) -- reset lại size chuẩn
-                end
-                RunService:UnbindFromRenderStep("ForceAimbotLock")
-                return
-            end
-            local camPos = Camera.CFrame.Position
-            Camera.CFrame = CFrame.lookAt(camPos, aimPos)
-
-            local head = target:FindFirstChild("Head")
-            if head then
-                head.Size = Vector3.new(6, 6, 6)
-                head.Massless = true
-                head.CanCollide = false
-            end
-            lastTarget = target
-        end)
-
-        local recoil = workspace.CurrentCamera:FindFirstChild("RecoilScript")
-        if recoil then
-            for _, v in ipairs(recoil:GetChildren()) do
-                if v:IsA("NumberValue") or v:IsA("Vector3Value") then
-                    v.Value = 0
-                end
-            end
-        end
-
-        pcall(function()
-            for _, s in ipairs({
-                LP.PlayerScripts:FindFirstChild("GunRecoil"),
-                LP.PlayerScripts:FindFirstChild("Recoil"),
-                LP.PlayerScripts:FindFirstChild("CameraShake"),
-                LP.Character and LP.Character:FindFirstChild("Recoil"),
-                LP.Character and LP.Character:FindFirstChild("CameraShakeScript")
-            }) do
-                if s then
-                    if s:IsA("ModuleScript") then
-                        local m = require(s)
-                        for k, v in pairs(m) do
-                            if typeof(v) == "function" then m[k] = function() end end
-                        end
-                    else
-                        s:Destroy()
-                    end
-                end
-            end
-        end)
-    else
-        if lastTarget and lastTarget:FindFirstChild("Head") then
-            lastTarget.Head.Size = Vector3.new(2, 1, 1) -- reset lại khi không lock
-        end
-        lastTarget = nil
-    end
+    return closest
 end
+
+-- ✅ Loop update
+RunService.RenderStepped:Connect(function()
+    NoRecoil()
+    NoReload()
+
+    local target = GetClosestTarget(300, 200)
+    if target then
+        BulletFollow(target.Character)
+        Camera.CFrame = CFrame.new(Camera.CFrame.Position, target.Character.Head.Position)
+    end
+end)
 
 
 local function IsVisible(part)

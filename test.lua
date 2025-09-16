@@ -749,28 +749,32 @@ local hitboxSize = Vector3.new(50, 50, 50)
 local function applyHitbox(model)
     local head = model:FindFirstChild("Head")
     local humanoid = model:FindFirstChild("Humanoid")
+
     if head and humanoid and humanoid.Health > 0 then
-        -- Kiểm tra xem đã tạo hitbox chưa
-        local hitbox = head:FindFirstChild("HitboxPart")
-        if not hitbox then
-            hitbox = Instance.new("Part")
-            hitbox.Name = "HitboxPart"
-            hitbox.Size = hitboxSize
-            hitbox.Transparency = 1 -- hoàn toàn vô hình
-            hitbox.CanCollide = false
-            hitbox.Massless = true
-            hitbox.Anchored = false
+        -- Giữ nguyên ngoại hình bằng mesh
+        local mesh = head:FindFirstChildOfClass("SpecialMesh")
+        if mesh then
+            mesh.Scale = mesh.Scale * (head.Size.X / hitboxSize.X)
+        end
 
-            -- Gắn hitbox vào Head bằng Weld
-            local weld = Instance.new("WeldConstraint")
-            weld.Part0 = hitbox
-            weld.Part1 = head
-            weld.Parent = hitbox
+        -- Mở rộng hitbox
+        head.Size = hitboxSize
+        head.CanCollide = false
+        head.Massless = true
 
-            hitbox.Parent = head
-            hitbox.CFrame = head.CFrame
+        -- Wall chams box
+        if not head:FindFirstChild("ChamBox") then
+            local adorn = Instance.new("BoxHandleAdornment")
+            adorn.Name = "ChamBox"
+            adorn.Size = hitboxSize
+            adorn.Adornee = head
+            adorn.AlwaysOnTop = true -- hiển thị xuyên tường
+            adorn.ZIndex = 10
+            adorn.Transparency = 0.4
+            adorn.Color3 = Color3.fromRGB(255, 20, 147) -- Hồng đậm
+            adorn.Parent = head
         else
-            hitbox.Size = hitboxSize -- cập nhật lại nếu có thay đổi
+            head.ChamBox.Size = hitboxSize
         end
     end
 end

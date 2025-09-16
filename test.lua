@@ -288,26 +288,6 @@ if bulletFollowEnabled then
 end
 
 
-local hitbox1 = true
-
-local function hitbox(state)
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= Players.LocalPlayer and p.Character and p.Character:FindFirstChild("Head") then
-            p.Character.Head.Size = state and Vector3.new(10,10,10) or Vector3.new(2,1,1)
-            p.Character.Head.CanCollide = false
-            p.Character.Head.Massless = true
-        end
-    end
-end
-
-game:GetService("UserInputService").InputBegan:Connect(function(i,g)
-    if g then return end
-    if i.KeyCode == Enum.KeyCode.H then
-        hitbox1 = not hitbox1
-        hitbox(hitbox1)
-    end
-end)
-
 if aimbotToggle() then
     local target = nil
     local closestDist = math.huge

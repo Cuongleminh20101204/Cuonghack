@@ -729,7 +729,7 @@ RunService.RenderStepped:Connect(function()
     if not hitboxToggle then return end
     
     for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= LP and p.Character then
+        if p ~= LP and p.Character and p.Team ~= LP.Team then
             updateHead(p.Character)
         end
     end

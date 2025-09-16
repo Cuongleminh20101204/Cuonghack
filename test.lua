@@ -1,9 +1,10 @@
+-- Created By QuanCheaterVN
+
 local Players = game:GetService("Players")
 local LP = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
-local UserInputService = game:GetService("UserInputService")
 
 local gui = Instance.new("ScreenGui", game.CoreGui)
 gui.Name = "QuanCheaterUI"
@@ -11,8 +12,8 @@ gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
 local toggleBtn = Instance.new("TextButton", gui)
 toggleBtn.Size = UDim2.new(0, 140, 0, 40)
-toggleBtn.Position = UDim2.new(0.5, 0, 0, 10)
-toggleBtn.AnchorPoint = Vector2.new(0.5, 0)
+toggleBtn.Position = UDim2.new(0.5, 0, 0, 10) -- giữa ngang, cách top 10px
+toggleBtn.AnchorPoint = Vector2.new(0.5, 0)   -- neo giữa theo trục X
 toggleBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 toggleBtn.Text = "mở menu"
 toggleBtn.TextColor3 = Color3.new(1, 1, 1)
@@ -104,6 +105,7 @@ local function addToggle(parent, name, y)
 	return function() return state end
 end
 
+
 local espToggle = addToggle(tabFrames["ESP"], "ESP Master", 10)
 local mobToggle = addToggle(tabFrames["ESP"], "Mob ESP", 50)
 local noRecoilToggle = addToggle(tabFrames["ESP"], "No Recoil", 90)
@@ -119,6 +121,7 @@ toggleBtn.MouseButton1Click:Connect(function()
 end)
 
 local playerESPCount = 0
+local mobESPCount = 0
 local maxESPDistance = 450
 
 if not counter then
@@ -130,6 +133,7 @@ if not counter then
     counter.Color = Color3.fromRGB(255, 255, 0)
     counter.Position = Vector2.new(workspace.CurrentCamera.ViewportSize.X / 2, 30)
 end
+
 
 local ESPdata, Items, ItemPick = {}, {}, {}
 local skeletonLines = { {1,2},{2,3},{3,4},{4,5},{2,6},{6,7},{3,8},{8,9},{3,10},{10,11} }
@@ -163,267 +167,465 @@ local function initESP(p)
 end
 
 local FovCircle = Drawing.new("Circle")
+FovCircle.Color = Color3.fromRGB(0, 255, 0)
 FovCircle.Thickness = 1
 FovCircle.Radius = 100
 FovCircle.Filled = false
 
-local bulletCache = {}
-local itemCache = {}
-local lastHeavyScan = 0
-local lastRecoilScan = 0
-local HEAVY_INTERVAL = 0.6
-local RECOIL_INTERVAL = 0.15
 
-local function scanBulletsAndItems()
-	local now = tick()
-	if now - lastHeavyScan < HEAVY_INTERVAL then return end
-	lastHeavyScan = now
-	local newBullets = {}
-	for _, v in ipairs(workspace:GetDescendants()) do
-		if v:IsA("BasePart") then
-			local n = v.Name:lower()
-			if n:find("bullet") or n:find("projectile") or n:find("shell") then
-				newBullets[v] = true
-			end
-		end
-		if (v:IsA("Part") or v:IsA("Model")) then
-			if v:FindFirstChildWhichIsA("ProximityPrompt") or v:FindFirstChildWhichIsA("ClickDetector") then
-				itemCache[v] = v
-			end
+
+
+RunService.RenderStepped:Connect(function()
+	local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+
+	if speedToggle() and LP.Character and LP.Character:FindFirstChild("Humanoid") then
+		LP.Character.Humanoid.WalkSpeed = 200
+	end
+
+	if flyToggle() and LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
+		LP.Character.HumanoidRootPart.Velocity = Vector3.new(0, 50, 0)
+	end
+
+	for obj, txt in pairs(ItemPick) do
+		if not obj:IsDescendantOf(workspace) then
+			txt:Remove()
+			ItemPick[obj] = nil
+		else
+			txt.Visible = false
 		end
 	end
-	for k in pairs(bulletCache) do
-		if not newBullets[k] then bulletCache[k] = nil end
-	end
-	for k in pairs(newBullets) do bulletCache[k] = true end
+	
+local function IsVisible(part)
+    local origin = Camera.CFrame.Position
+    local targetPosition = part.Position
+    local direction = targetPosition - origin
+
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+    raycastParams.FilterDescendantsInstances = {LP.Character}
+
+    local result = workspace:Raycast(origin, direction, raycastParams)
+    
+    return not result or result.Instance:IsDescendantOf(part.Parent)
 end
 
-local function safeNoReload()
-	if tick() - lastHeavyScan < HEAVY_INTERVAL then return end
+
+if noRecoilToggle() then
+	local cam = workspace.CurrentCamera
+	if cam and cam:FindFirstChild("RecoilScript") then
+		for _, v in ipairs(cam.RecoilScript:GetChildren()) do
+			if v:IsA("NumberValue") or v:IsA("Vector3Value") then
+				v.Value = 0
+			end
+		end
+	end
+
 	for _, tool in ipairs(LP.Backpack:GetChildren()) do
-		if tool:IsA("Tool") then
-			if tool:FindFirstChild("ReloadTime") then
-				pcall(function() tool.ReloadTime.Value = 0 end)
-			end
-			if tool:FindFirstChild("Ammo") and tool:FindFirstChild("MaxAmmo") then
-				pcall(function() tool.Ammo.Value = tool.MaxAmmo.Value end)
-			end
-		end
-	end
-end
-
-local function safeNoRecoil()
-	if tick() - lastRecoilScan < RECOIL_INTERVAL then return end
-	lastRecoilScan = tick()
-	pcall(function()
-		for _, obj in ipairs(workspace:GetDescendants()) do
-			if obj:IsA("NumberValue") or obj:IsA("Vector3Value") then
-				local n = obj.Name:lower()
-				if n:find("recoil") or n:find("kick") or n:find("spread") then
+		if tool:IsA("Tool") and tool:FindFirstChild("Recoil") then
+			for _, obj in ipairs(tool:GetDescendants()) do
+				if obj:IsA("NumberValue") or obj:IsA("Vector3Value") then
 					obj.Value = 0
 				end
 			end
 		end
-		for _, tool in ipairs(LP.Backpack:GetChildren()) do
-			for _, obj in ipairs(tool:GetDescendants()) do
-				if obj:IsA("NumberValue") or obj:IsA("Vector3Value") then
-					local n = obj.Name:lower()
-					if n:find("recoil") or n:find("kick") or n:find("spread") then
-						obj.Value = 0
-					end
-				end
-			end
-		end
-		if LP.Character then
-			for _, obj in ipairs(LP.Character:GetDescendants()) do
-				if obj:IsA("NumberValue") or obj:IsA("Vector3Value") then
-					local n = obj.Name:lower()
-					if n:find("recoil") or n:find("kick") or n:find("spread") then
-						obj.Value = 0
-					end
-				end
-			end
-		end
-	end)
-end
+	end
 
-local function BulletFollowTarget(target)
-	if not target then return end
-	if not target:FindFirstChild("Head") then return end
-	local headPos = target.Head.Position
-	for b in pairs(bulletCache) do
-		if b and b:IsA("BasePart") and b.Parent then
-			pcall(function()
-				b.CFrame = CFrame.new(b.Position, headPos)
-				b.Position = headPos
-			end)
+	local char = LP.Character
+	if char then
+		for _, obj in ipairs(char:GetDescendants()) do
+			if obj:IsA("NumberValue") or obj:IsA("Vector3Value") then
+				if obj.Name:lower():find("recoil") then
+					obj.Value = 0
+				end
+			end
 		end
 	end
 end
 
-local function IsVisiblePart(part)
-	local origin = Camera.CFrame.Position
-	local targetPosition = part.Position
-	local direction = targetPosition - origin
-	local raycastParams = RaycastParams.new()
-	raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
-	raycastParams.FilterDescendantsInstances = {LP.Character}
-	local result = workspace:Raycast(origin, direction, raycastParams)
-	return not result or result.Instance:IsDescendantOf(part.Parent)
+
+-- NO RELOAD
+if noReloadEnabled then
+    pcall(function()
+        for _, tool in ipairs(LP.Backpack:GetChildren()) do
+            if tool:IsA("Tool") then
+                if tool:FindFirstChild("ReloadTime") then
+                    tool.ReloadTime.Value = 0
+                end
+                if tool:FindFirstChild("Ammo") and tool:FindFirstChild("MaxAmmo") then
+                    tool.Ammo.Value = tool.MaxAmmo.Value
+                end
+                local reloadFunc = tool:FindFirstChild("Reload")
+                if reloadFunc and reloadFunc:IsA("ModuleScript") then
+                    local m = require(reloadFunc)
+                    for k, v in pairs(m) do
+                        if typeof(v) == "function" then m[k] = function() end end
+                    end
+                end
+            end
+        end
+    end)
 end
 
-local function GetClosestTarget(maxDist, fov)
-	local closest = nil
-	local closestDist = math.huge
-	local center = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
-	for _, p in ipairs(Players:GetPlayers()) do
-		if p ~= LP and p.Character and p.Character:FindFirstChild("Head") then
-			local hum = p.Character:FindFirstChild("Humanoid")
-			local hrp = p.Character:FindFirstChild("HumanoidRootPart")
-			if hum and hrp and hum.Health > 0 then
-				local head = p.Character.Head
-				local sp, onScreen = Camera:WorldToViewportPoint(head.Position)
-				if onScreen and IsVisiblePart(head) then
-					local dist2D = (Vector2.new(sp.X, sp.Y) - center).Magnitude
-					local dist3D = (hrp.Position - Camera.CFrame.Position).Magnitude
-					if dist3D <= maxDist and dist2D <= fov and dist3D < closestDist then
-						closestDist = dist3D
-						closest = p.Character
-					end
-				end
-			end
-		end
-	end
-	return closest
+
+if bulletFollowEnabled then
+    RunService.Stepped:Connect(function()
+        if target 
+            and target:FindFirstChild("Head") 
+            and target:FindFirstChild("Humanoid") 
+            and target.Humanoid.Health > 0 
+            and target:FindFirstChild("HumanoidRootPart") 
+            and (target:FindFirstChild("HumanoidRootPart").Position - Camera.CFrame.Position).Magnitude <= 500 
+        then
+            local headPos = target.Head.Position
+            for _, b in ipairs(workspace:GetDescendants()) do
+                if b:IsA("BasePart") and b.Name:lower():find("bullet") then
+                    b.CFrame = CFrame.new(b.Position, headPos)
+                    b.Position = headPos
+                end
+            end
+        end
+    end)
+end
+
+
+local hitbox1 = true
+
+local function hitbox(state)
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= Players.LocalPlayer and p.Character and p.Character:FindFirstChild("Head") then
+            p.Character.Head.Size = state and Vector3.new(10,10,10) or Vector3.new(2,1,1)
+            p.Character.Head.CanCollide = false
+            p.Character.Head.Massless = true
+        end
+    end
+end
+
+game:GetService("UserInputService").InputBegan:Connect(function(i,g)
+    if g then return end
+    if i.KeyCode == Enum.KeyCode.H then
+        hitbox1 = not hitbox1
+        hitbox(hitbox1)
+    end
+end)
+
+if aimbotToggle() then
+    local target = nil
+    local closestDist = math.huge
+    local maxDist = 250
+    local fov = 180
+    local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    local aimPos = nil
+
+    local function IsVisible(part, model)
+        local origin = Camera.CFrame.Position
+        local direction = (part.Position - origin)
+        local params = RaycastParams.new()
+        params.FilterType = Enum.RaycastFilterType.Blacklist
+        params.FilterDescendantsInstances = {LP.Character, Camera}
+        local result = workspace:Raycast(origin, direction, params)
+        return not result or result.Instance:IsDescendantOf(model)
+    end
+
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LP and p.Team ~= LP.Team and p.Character then
+            local char = p.Character
+            local head = char:FindFirstChild("Head")
+            local root = char:FindFirstChild("HumanoidRootPart")
+            local hum = char:FindFirstChild("Humanoid")
+
+            if head and root and hum and hum.Health > 0 and IsVisible(head, char) then
+                local dist3D = (head.Position - Camera.CFrame.Position).Magnitude
+                if dist3D <= maxDist then
+                    local screenPos, onScreen = Camera:WorldToViewportPoint(head.Position)
+                    local dist2D = (Vector2.new(screenPos.X, screenPos.Y) - center).Magnitude
+                    local dot = (head.Position - Camera.CFrame.Position).Unit:Dot(Camera.CFrame.LookVector)
+
+                    if onScreen and dot > 0 and dist2D <= fov then
+                        if dist3D < closestDist then
+                            target = char
+                            closestDist = dist3D
+
+                            -- Nếu lệch tâm nhiều thì aim cổ
+                            if dist2D > 100 then
+                                aimPos = root.Position + Vector3.new(0, 1.1, 0)  -- Aim cổ
+                            else
+                                aimPos = head.Position + Vector3.new(0, 0.05, 0) -- Aim đầu
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    RunService:UnbindFromRenderStep("ForceAimbotLock")
+    if target and aimPos then
+        RunService:BindToRenderStep("ForceAimbotLock", Enum.RenderPriority.Camera.Value + 1, function()
+            if not target or not target:FindFirstChild("Humanoid") or target.Humanoid.Health <= 0 then
+                RunService:UnbindFromRenderStep("ForceAimbotLock")
+                return
+            end
+            local camPos = Camera.CFrame.Position
+            Camera.CFrame = CFrame.lookAt(camPos, aimPos)
+        end)
+
+        local recoil = workspace.CurrentCamera:FindFirstChild("RecoilScript")
+        if recoil then
+            for _, v in ipairs(recoil:GetChildren()) do
+                if v:IsA("NumberValue") or v:IsA("Vector3Value") then
+                    v.Value = 0
+                end
+            end
+        end
+
+        pcall(function()
+            for _, s in ipairs({
+                LP.PlayerScripts:FindFirstChild("GunRecoil"),
+                LP.PlayerScripts:FindFirstChild("Recoil"),
+                LP.PlayerScripts:FindFirstChild("CameraShake"),
+                LP.Character and LP.Character:FindFirstChild("Recoil"),
+                LP.Character and LP.Character:FindFirstChild("CameraShakeScript")
+            }) do
+                if s then
+                    if s:IsA("ModuleScript") then
+                        local m = require(s)
+                        for k, v in pairs(m) do
+                            if typeof(v) == "function" then m[k] = function() end end
+                        end
+                    else
+                        s:Destroy()
+                    end
+                end
+            end
+        end)
+    end
+end
+
+local function IsVisible(part)
+    local origin = Camera.CFrame.Position
+    local direction = (part.Position - origin)
+    local params = RaycastParams.new()
+    params.FilterType = Enum.RaycastFilterType.Blacklist
+    params.FilterDescendantsInstances = {LP.Character}
+    local result = workspace:Raycast(origin, direction, params)
+    return not result or result.Instance:IsDescendantOf(part.Parent)
 end
 
 local function handleESP(target)
-	local hum = target:FindFirstChild("Humanoid")
-	local hrp = target:FindFirstChild("HumanoidRootPart")
-	if not hum or not hrp then return end
-	local plr = Players:GetPlayerFromCharacter(target)
-	if not plr or plr == LP then return end
-	if plr.Team and LP.Team and plr.Team == LP.Team then return end
-	local distance = (hrp.Position - Camera.CFrame.Position).Magnitude
-	if distance > maxESPDistance or hum.Health <= 0 or hum.Health == math.huge then return end
-	local sp, onScreen = Camera:WorldToViewportPoint(hrp.Position)
-	local dir = (hrp.Position - Camera.CFrame.Position).Unit
-	local dot = dir:Dot(Camera.CFrame.LookVector)
-	if not (espToggle() and onScreen and dot > 0) then return end
-	if not ESPdata[target] then initESP(target) end
-	local ed = ESPdata[target]
-	local visible = IsVisiblePart(hrp)
-	local color = visible and Color3.fromRGB(0,255,0) or Color3.fromRGB(255,0,0)
-	local sy = math.clamp(2000 / distance, 30, 200)
-	local sx = sy / 2
-	ed.box.Position = Vector2.new(sp.X - sx / 2, sp.Y - sy / 2)
-	ed.box.Size = Vector2.new(sx, sy)
-	ed.box.Color = color
-	ed.box.Visible = true
-	ed.name.Position = Vector2.new(sp.X, sp.Y - sy / 2 - 15)
-	ed.name.Text = target.Name
-	ed.name.Color = color
-	ed.name.Visible = true
-	ed.hp.Position = Vector2.new(sp.X, sp.Y - sy / 2 - 30)
-	ed.hp.Text = "HP: " .. math.floor(hum.Health)
-	ed.hp.Color = color
-	ed.hp.Visible = true
-	if not ed.dist then
-		ed.dist = Drawing.new("Text")
-		ed.dist.Size = 17
-		ed.dist.Color = Color3.new(1, 1, 1)
-		ed.dist.Outline = true
-		ed.dist.Center = true
-	end
-	ed.dist.Position = Vector2.new(sp.X, sp.Y + sy / 2 + 10)
-	ed.dist.Text = math.floor(distance) .. "m"
-	ed.dist.Visible = true
-	local joints = getJoints(target)
-	for i, pair in ipairs(skeletonLines) do
-		local a, b = joints[pair[1]], joints[pair[2]]
-		local sl = ed.skeleton[i]
-		if a and b then
-			sl.From = a
-			sl.To = b
-			sl.Color = color
-			sl.Visible = true
-		else
-			sl.Visible = false
-		end
-	end
+    local hum = target:FindFirstChild("Humanoid")
+    local hrp = target:FindFirstChild("HumanoidRootPart")
+    if not hum or not hrp then return end
+    local plr = Players:GetPlayerFromCharacter(target)
+    if not plr or plr == LP then return end
+    if plr.Team and LP.Team and plr.Team == LP.Team then return end
+    local distance = (hrp.Position - Camera.CFrame.Position).Magnitude
+    if distance > maxESPDistance or hum.Health <= 0 or hum.Health == math.huge then return end
+    local sp, onScreen = Camera:WorldToViewportPoint(hrp.Position)
+    local dir = (hrp.Position - Camera.CFrame.Position).Unit
+    local dot = dir:Dot(Camera.CFrame.LookVector)
+    if not (espToggle() and onScreen and dot > 0) then return end
+    if not ESPdata[target] then initESP(target) end
+    local ed = ESPdata[target]
+    local visible = IsVisible(hrp)
+    local color = visible and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
+    local sy = math.clamp(2000 / distance, 30, 200)
+    local sx = sy / 2
+    ed.box.Position = Vector2.new(sp.X - sx / 2, sp.Y - sy / 2)
+    ed.box.Size = Vector2.new(sx, sy)
+    ed.box.Color = color
+    ed.box.Visible = true
+    ed.name.Position = Vector2.new(sp.X, sp.Y - sy / 2 - 15)
+    ed.name.Text = target.Name
+    ed.name.Color = color
+    ed.name.Visible = true
+    ed.hp.Position = Vector2.new(sp.X, sp.Y - sy / 2 - 30)
+    ed.hp.Text = "HP: " .. math.floor(hum.Health)
+    ed.hp.Color = color
+    ed.hp.Visible = true
+    if not ed.dist then
+        ed.dist = Drawing.new("Text")
+        ed.dist.Size = 17
+        ed.dist.Color = Color3.new(1, 1, 1)
+        ed.dist.Outline = true
+        ed.dist.Center = true
+    end
+    ed.dist.Position = Vector2.new(sp.X, sp.Y + sy / 2 + 10)
+    ed.dist.Text = math.floor(distance) .. "m"
+    ed.dist.Visible = true
+    local joints = getJoints(target)
+    for i, pair in ipairs(skeletonLines) do
+        local a, b = joints[pair[1]], joints[pair[2]]
+        local sl = ed.skeleton[i]
+        if a and b then
+            sl.From = a
+            sl.To = b
+            sl.Color = color
+            sl.Visible = true
+        else
+            sl.Visible = false
+        end
+    end
 end
 
-local function updateESP()
-	if not espToggle() then
-		for ent, ed in pairs(ESPdata) do
-			for _, v in pairs(ed) do
-				if typeof(v) == "table" then
-					for _, sub in pairs(v) do sub.Visible = false end
-				else
-					v.Visible = false
-				end
-			end
-		end
-		if counter then counter.Visible = false end
-		return
-	end
-	playerESPCount = 0
-	for _, p in pairs(Players:GetPlayers()) do
-		if p ~= LP and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character:FindFirstChild("Humanoid") then
-			handleESP(p.Character)
-			playerESPCount += 1
-		end
-	end
-	counter.Text = "ESP: " .. playerESPCount
-	counter.Visible = true
+function updateESP()
+    if not espToggle() then
+        for ent, ed in pairs(ESPdata) do
+            for _, v in pairs(ed) do
+                if typeof(v) == "table" then
+                    for _, sub in pairs(v) do sub.Visible = false end
+                else
+                    v.Visible = false
+                end
+            end
+        end
+        if counter then counter.Visible = false end
+        return
+    end
+    playerESPCount = 0
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= LP and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character:FindFirstChild("Humanoid") then
+            handleESP(p.Character)
+            playerESPCount += 1
+        end
+    end
+    counter.Text = "ESP: " .. playerESPCount
+    counter.Visible = true
 end
 
-RunService.RenderStepped:Connect(function()
-	local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
-	if speedToggle() and LP.Character and LP.Character:FindFirstChild("Humanoid") then
-		pcall(function() LP.Character.Humanoid.WalkSpeed = 200 end)
-	end
-	if flyToggle() and LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
-		pcall(function() LP.Character.HumanoidRootPart.Velocity = Vector3.new(0, 50, 0) end)
-	end
-	if espToggle() then
-		updateESP()
-	end
-	if aimbotToggle() then
-		local target = GetClosestTarget(300, 200)
-		if target then
-			if bulletFollowEnabled then BulletFollowTarget(target) end
-			local head = target:FindFirstChild("Head")
-			if head then
-				local camPos = Camera.CFrame.Position
-				Camera.CFrame = CFrame.lookAt(camPos, head.Position)
-			end
-		end
-	end
-	FovCircle.Position = Vector2.new(center.X, center.Y)
-	FovCircle.Radius = 100
-	FovCircle.Visible = aimbotToggle()
-end)
 
-RunService.Heartbeat:Connect(function()
-	scanBulletsAndItems()
-	if noReloadEnabled then safeNoReload() end
-	if noRecoilToggle() then safeNoRecoil() end
+if itemPickToggle() then
+    local LP = game:GetService("Players").LocalPlayer
+    local Mouse = LP:GetMouse()
+    local maxItemDistance = 200
+
+    if not gui then
+        gui = Instance.new("ScreenGui", LP:WaitForChild("PlayerGui"))
+        gui.Name = "StoreUI"
+        gui.ResetOnSpawn = false
+
+        storeFrame = Instance.new("Frame", gui)
+        storeFrame.Size = UDim2.new(0, 150, 0, 300)
+        storeFrame.Position = UDim2.new(1, -160, 0.5, -150)
+        storeFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+        storeFrame.BorderSizePixel = 0
+
+        local storeLabel = Instance.new("TextLabel", storeFrame)
+        storeLabel.Size = UDim2.new(1, 0, 0, 30)
+        storeLabel.Text = " TÚI ĐỒ"
+        storeLabel.TextColor3 = Color3.new(1, 1, 1)
+        storeLabel.BackgroundTransparency = 1
+        storeLabel.Font = Enum.Font.GothamBold
+        storeLabel.TextSize = 14
+
+        StoreItems = {}
+    end
+
+    for obj, txt in pairs(ItemPick) do
+        if not obj:IsDescendantOf(workspace) then
+            txt:Remove()
+            if txt._dragBtn then txt._dragBtn:Destroy() end
+            ItemPick[obj] = nil
+        else
+            txt.Visible = false
+        end
+    end
+
+    for _, o in pairs(workspace:GetDescendants()) do
+        if (o:IsA("Part") or o:IsA("Model")) and (o:FindFirstChildWhichIsA("ProximityPrompt") or o:FindFirstChildWhichIsA("ClickDetector")) then
+            local pos = o:IsA("Model") and (o.PrimaryPart and o.PrimaryPart.Position or o:GetPivot().Position) or o.Position
+            local dist = (pos - Camera.CFrame.Position).Magnitude
+            if dist > maxItemDistance then
+                if ItemPick[o] then
+                    ItemPick[o]:Remove()
+                    if ItemPick[o]._dragBtn then ItemPick[o]._dragBtn:Destroy() end
+                    ItemPick[o] = nil
+                end
+            else
+                if not ItemPick[o] then
+                    local txt = Drawing.new("Text")
+                    txt.Size = 13
+                    txt.Color = Color3.fromRGB(0, 255, 255)
+                    txt.Center = true
+                    txt.Outline = true
+                    ItemPick[o] = txt
+
+                    local dragBtn = Instance.new("TextButton", gui)
+                    dragBtn.Size = UDim2.new(0, 100, 0, 25)
+                    dragBtn.BackgroundColor3 = Color3.fromRGB(0, 255, 255)
+                    dragBtn.TextColor3 = Color3.fromRGB(0, 0, 0)
+                    dragBtn.Text = "[Pick] " .. o.Name
+                    dragBtn.Font = Enum.Font.SourceSansBold
+                    dragBtn.TextSize = 14
+                    dragBtn.Position = UDim2.new(0, -9999, 0, -9999)
+                    dragBtn.Visible = false
+                    ItemPick[o]._dragBtn = dragBtn
+
+                    local dragging = false
+                    local offset = Vector2.new()
+
+                    txt.MouseButton1Down = function()
+                        dragging = true
+                        offset = Vector2.new(Mouse.X - dragBtn.AbsolutePosition.X, Mouse.Y - dragBtn.AbsolutePosition.Y)
+                        dragBtn.Position = UDim2.new(0, Mouse.X, 0, Mouse.Y)
+                        dragBtn.Visible = true
+                    end
+
+                    game:GetService("UserInputService").InputEnded:Connect(function(input)
+                        if input.UserInputType == Enum.UserInputType.MouseButton1 and dragging then
+                            dragging = false
+                            local ab = dragBtn.AbsolutePosition
+                            local box = storeFrame.AbsolutePosition
+                            local size = storeFrame.AbsoluteSize
+
+                            if ab.X >= box.X and ab.X <= box.X + size.X and ab.Y >= box.Y and ab.Y <= box.Y + size.Y then
+                                if not StoreItems[o] then
+                                    StoreItems[o] = true
+                                    local label = Instance.new("TextLabel", storeFrame)
+                                    label.Size = UDim2.new(1, 0, 0, 20)
+                                    label.Text = o.Name
+                                    label.TextColor3 = Color3.new(1, 1, 1)
+                                    label.BackgroundTransparency = 1
+                                    label.Font = Enum.Font.Gotham
+                                    label.TextSize = 13
+                                end
+                            end
+
+                            dragBtn.Visible = false
+                        end
+                    end)
+
+                    game:GetService("RunService").RenderStepped:Connect(function()
+                        if dragging and dragBtn.Visible then
+                            dragBtn.Position = UDim2.new(0, Mouse.X - offset.X, 0, Mouse.Y - offset.Y)
+                        end
+                    end)
+                end
+
+                local sp, on = Camera:WorldToViewportPoint(pos)
+                ItemPick[o].Position = Vector2.new(sp.X, sp.Y)
+                ItemPick[o].Text = "[Pick] " .. o.Name
+                ItemPick[o].Visible = on
+            end
+        end
+    end
+end
+
+
+
 end)
 
 Players.PlayerRemoving:Connect(function(p)
-	for ent, ed in pairs(ESPdata) do
-		if ent and ent == p.Character then
-			for _, d in pairs(ed) do
-				if typeof(d) == "table" then
-					for _, l in pairs(d) do l:Remove() end
-				else
-					d:Remove()
-				end
-			end
-			ESPdata[ent] = nil
-		end
-	end
+    if ESPdata[p] then
+        for _, d in pairs(ESPdata[p]) do
+            if typeof(d) == "table" then
+                for _, l in pairs(d) do l:Remove() end
+            else
+                d:Remove()
+            end
+        end
+        ESPdata[p] = nil
+    end
 end)
+
 
 for _, v in pairs(getconnections(LP.Idled)) do v:Disable() end

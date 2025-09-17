@@ -721,14 +721,17 @@ for _, v in pairs(getconnections(LP.Idled)) do v:Disable() end
 -- end)
 
 
+
 local Workspace = game:GetService("Workspace")
+
 
 local magicbullet = true
 local bulletSpeed = 1e4
-local headOffset = Vector3.new(0,200,0) -- bullet nhắm cao hơn head
+local headOffset = Vector3.new(0,200,0)
 local headHitboxSize = 70
 local activeBullets = {}
 
+-- Lấy tất cả target hợp lệ 360°, không team/mình
 local function getTargets()
     local targets = {}
     for _, p in ipairs(Players:GetPlayers()) do
@@ -748,6 +751,7 @@ local function getTargets()
     return targets
 end
 
+-- Tạo bullet homing target
 local function fireBullet(target)
     if not LP.Character then return end
     local tool = LP.Character:FindFirstChildOfClass("Tool")
@@ -797,7 +801,7 @@ local function fireBullet(target)
     end)
 end
 
--- Draw ESP + ViewMatrix conversion
+-- Chuyển tọa độ thế giới sang màn hình
 local function worldToScreen(pos)
     if Camera then
         local screenPos, onScreen = Camera:WorldToViewportPoint(pos)
@@ -806,6 +810,7 @@ local function worldToScreen(pos)
     return Vector3.new(), false
 end
 
+-- Main loop full auto + draw box
 RunService.RenderStepped:Connect(function()
     if not magicbullet then return end
     local targets = getTargets()
@@ -824,11 +829,19 @@ RunService.RenderStepped:Connect(function()
                 fireBullet(target)
             end
 
-            -- Draw ESP line từ camera tới head target
+            -- Vẽ draw box target
             local screenPos, onScreen = worldToScreen(head.Position)
             if onScreen then
-                -- vẽ line hoặc marker ở screenPos
-                -- ví dụ: Drawing.new() hoặc UI Frame follow screenPos
+                local size = 50 -- kích thước box có thể thay đổi
+                -- ví dụ dùng Drawing API:
+                local box = Drawing.new("Square")
+                box.Position = Vector2.new(screenPos.X - size/2, screenPos.Y - size/2)
+                box.Size = Vector2.new(size, size)
+                box.Color = Color3.fromRGB(255,0,0)
+                box.Thickness = 2
+                box.Visible = true
+                -- Xoá sau 1 frame để update liên tục
+                task.defer(function() box:Remove() end)
             end
         end
     end

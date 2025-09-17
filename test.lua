@@ -720,12 +720,11 @@ for _, v in pairs(getconnections(LP.Idled)) do v:Disable() end
 --     end
 -- end)
 
-
 --// Settings
 local magicbullet = true
 local bulletSpeed = 1e4
 local headOffset = Vector3.new(0,150,0) -- nâng cực cao
-local headHitboxSize = 50 -- hitbox head
+local headHitboxSize = 50
 local espObjects = {}
 local activeBullets = {}
 
@@ -779,7 +778,7 @@ local function fireBullet(target)
     local head = target:FindFirstChild("Head")
     if not head then return end
 
-    local aimPos = head.Position + headOffset -- nâng cực cao
+    local aimPos = head.Position + headOffset
 
     local bullet = Instance.new("Part")
     bullet.Size = Vector3.new(0.2,0.2,0.2)
@@ -806,8 +805,9 @@ local function fireBullet(target)
             if conn then conn:Disconnect() end
             return
         end
-        local direction = (aimPos - bullet.Position).Unit
-        bv.Velocity = direction * bulletSpeed
+        -- Cập nhật aim target mỗi frame (trong không khí, target di chuyển)
+        aimPos = head.Position + headOffset
+        bv.Velocity = (aimPos - bullet.Position).Unit * bulletSpeed
 
         if (bullet.Position - aimPos).Magnitude < 1 then
             bullet:Destroy()
@@ -827,46 +827,65 @@ RunService.RenderStepped:Connect(function()
     local cameraPos = Camera.CFrame.Position
     local cameraLook = Camera.CFrame.LookVector
     local targets = getTargets()
-    for _, target in ipairs(targets) do
-        local head = target:FindFirstChild("Head")
+
+    -- Lấy target gần nhất trước mặt
+    local closestTarget
+    local shortest = math.huge
+    for _, t in ipairs(targets) do
+        local head = t:FindFirstChild("Head")
+        if head and t:FindFirstChild("Humanoid") and t.Humanoid.Health > 0 then
+            local toTarget = (head.Position - cameraPos)
+            if toTarget:Dot(cameraLook) > 0 then
+                local dist = toTarget.Magnitude
+                if dist < shortest then
+                    shortest = dist
+                    closestTarget = t
+                end
+            end
+        end
+    end
+
+    -- Draw ESP + Raycast
+    for _, t in ipairs(targets) do
+        local head = t:FindFirstChild("Head")
         if head then
-            -- Raycast check vật cản
+            local color = Color3.fromRGB(0,255,0)
             local origin = cameraPos
             local direction = (head.Position - origin)
             local rayParams = RaycastParams.new()
             rayParams.FilterDescendantsInstances = {LP.Character}
             rayParams.FilterType = Enum.RaycastFilterType.Blacklist
             local rayResult = Workspace:Raycast(origin, direction, rayParams)
-            local color = Color3.fromRGB(0,255,0)
-            if rayResult and rayResult.Instance and not rayResult.Instance:IsDescendantOf(target) then
+            if rayResult and rayResult.Instance and not rayResult.Instance:IsDescendantOf(t) then
                 color = Color3.fromRGB(255,0,0)
             end
 
-            -- ESP box chỉ vẽ trước mặt camera
             local toTarget = (head.Position - cameraPos).Unit
-            if toTarget:Dot(cameraLook) > 0 then -- chỉ vẽ target trước mặt
+            if toTarget:Dot(cameraLook) > 0 then
                 local sp, onScreen = Camera:WorldToViewportPoint(head.Position)
                 if onScreen then
-                    local box = drawESP(target, color)
+                    local box = drawESP(t, color)
                     box.Position = Vector2.new(sp.X - headHitboxSize/2, sp.Y - headHitboxSize/2)
                     box.Size = Vector2.new(headHitboxSize, headHitboxSize)
                     box.Visible = true
                 end
             else
-                if espObjects[target] then espObjects[target].Visible = false end
+                if espObjects[t] then espObjects[t].Visible = false end
             end
+        end
+    end
 
-            -- Bullet tự dí target nếu chưa có
-            local alreadyFiring = false
-            for b,tgt in pairs(activeBullets) do
-                if tgt == target then
-                    alreadyFiring = true
-                    break
-                end
+    -- Fire bullet cho target trước mặt nếu chưa tracking
+    if closestTarget then
+        local alreadyFiring = false
+        for b,tgt in pairs(activeBullets) do
+            if tgt == closestTarget then
+                alreadyFiring = true
+                break
             end
-            if not alreadyFiring then
-                fireBullet(target)
-            end
+        end
+        if not alreadyFiring then
+            fireBullet(closestTarget)
         end
     end
 

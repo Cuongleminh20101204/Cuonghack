@@ -722,8 +722,8 @@ for _, v in pairs(getconnections(LP.Idled)) do v:Disable() end
 
 
 
-local Workspace = game:GetService("Workspace")
 
+local Workspace = game:GetService("Workspace")
 
 local magicbullet = true
 local bulletSpeed = 1e4
@@ -731,7 +731,7 @@ local headOffset = Vector3.new(0,200,0)
 local headHitboxSize = 70
 local activeBullets = {}
 
--- Lấy tất cả target hợp lệ 360°, không team/mình
+-- Lấy target hợp lệ 360°, không team/mình
 local function getTargets()
     local targets = {}
     for _, p in ipairs(Players:GetPlayers()) do
@@ -801,13 +801,19 @@ local function fireBullet(target)
     end)
 end
 
--- Chuyển tọa độ thế giới sang màn hình
-local function worldToScreen(pos)
-    if Camera then
-        local screenPos, onScreen = Camera:WorldToViewportPoint(pos)
-        return screenPos, onScreen
+-- Vẽ draw box target trực tiếp (bình thường)
+local function drawBox(target)
+    local head = target:FindFirstChild("Head")
+    if head then
+        local box = Instance.new("BoxHandleAdornment")
+        box.Adornee = target
+        box.Size = Vector3.new(3,5,1) -- có thể điều chỉnh cho phù hợp
+        box.Color3 = Color3.fromRGB(255,0,0)
+        box.AlwaysOnTop = true
+        box.ZIndex = 1
+        box.Parent = Workspace
+        task.defer(function() box:Destroy() end) -- destroy để update mỗi frame
     end
-    return Vector3.new(), false
 end
 
 -- Main loop full auto + draw box
@@ -829,20 +835,7 @@ RunService.RenderStepped:Connect(function()
                 fireBullet(target)
             end
 
-            -- Vẽ draw box target
-            local screenPos, onScreen = worldToScreen(head.Position)
-            if onScreen then
-                local size = 50 -- kích thước box có thể thay đổi
-                -- ví dụ dùng Drawing API:
-                local box = Drawing.new("Square")
-                box.Position = Vector2.new(screenPos.X - size/2, screenPos.Y - size/2)
-                box.Size = Vector2.new(size, size)
-                box.Color = Color3.fromRGB(255,0,0)
-                box.Thickness = 2
-                box.Visible = true
-                -- Xoá sau 1 frame để update liên tục
-                task.defer(function() box:Remove() end)
-            end
+            drawBox(target) -- draw box trực tiếp quanh target
         end
     end
 end)

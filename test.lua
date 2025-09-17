@@ -742,11 +742,10 @@ for _, v in pairs(getconnections(LP.Idled)) do v:Disable() end
 -- end)
 
 
-
 local hitboxToggle = true
-local headHitboxSize = Vector3.new(50,50,50)
+local headHitboxSize = Vector3.new(50,80,50)
 local originalSizes = {}
-local chamsParts = {}
+local chamsBoxes = {}
 
 local targetNames = {
     "puzzles97glAss__Bot",
@@ -775,28 +774,6 @@ local function isTarget(model)
     return false
 end
 
-local function createChams(head)
-    if chamsParts[head] then return chamsParts[head] end
-    local cham = Instance.new("Part")
-    cham.Name = "HitboxChams"
-    cham.Anchored = true
-    cham.CanCollide = false
-    cham.Size = headHitboxSize
-    cham.Material = Enum.Material.Neon
-    cham.BrickColor = BrickColor.new("Bright red")
-    cham.Transparency = 0.5
-    cham.Parent = workspace
-    chamsParts[head] = cham
-    return cham
-end
-
-local function removeChams(head)
-    if chamsParts[head] then
-        pcall(function() chamsParts[head]:Destroy() end)
-        chamsParts[head] = nil
-    end
-end
-
 local function applyHeadHitbox(model)
     local head = model:FindFirstChild("Head")
     local humanoid = model:FindFirstChild("Humanoid")
@@ -809,15 +786,27 @@ local function applyHeadHitbox(model)
         head.Massless = true
         head.Transparency = 1
 
-        -- tạo chams xung quanh head
-        local cham = createChams(head)
-        cham.CFrame = head.CFrame
-        cham.Size = headHitboxSize
+        if not chamsBoxes[head] then
+            local box = Instance.new("BoxHandleAdornment")
+            box.Adornee = head
+            box.Size = head.Size
+            box.Color3 = Color3.new(1,0,0)
+            box.AlwaysOnTop = true
+            box.ZIndex = 10
+            box.Transparency = 0.5
+            box.Parent = head
+            chamsBoxes[head] = box
+        else
+            chamsBoxes[head].Size = head.Size
+        end
     elseif head and originalSizes[head] then
         head.Size = originalSizes[head]
         head.Transparency = 0
         originalSizes[head] = nil
-        removeChams(head)
+        if chamsBoxes[head] then
+            chamsBoxes[head]:Destroy()
+            chamsBoxes[head] = nil
+        end
     end
 end
 
@@ -825,12 +814,12 @@ RunService.RenderStepped:Connect(function()
     if not hitboxToggle then return end
 
     for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= LP and p.Character and p.Team ~= LP.Team and isTarget(p.Character) then
+        if p ~= LP and p.Character and p.Team ~= LP.Team then
             applyHeadHitbox(p.Character)
         end
     end
 
-    for _, obj in ipairs(workspace:GetChildren()) do
+    for _, obj in ipairs(Workspace:GetChildren()) do
         if obj:IsA("Model") and obj:FindFirstChild("Humanoid") and obj:FindFirstChild("Head") then
             if isTarget(obj) or not Players:GetPlayerFromCharacter(obj) then
                 applyHeadHitbox(obj)

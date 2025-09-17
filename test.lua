@@ -267,7 +267,6 @@ if noReloadEnabled then
     end)
 end
 
-
 if bulletFollowEnabled then
     RunService.Stepped:Connect(function()
         if target 
@@ -275,13 +274,15 @@ if bulletFollowEnabled then
             and target:FindFirstChild("Humanoid") 
             and target.Humanoid.Health > 0 
             and target:FindFirstChild("HumanoidRootPart") 
-            and (target:FindFirstChild("HumanoidRootPart").Position - Camera.CFrame.Position).Magnitude <= 500 
+            and (target.HumanoidRootPart.Position - Camera.CFrame.Position).Magnitude <= 500 
         then
             local headPos = target.Head.Position
             for _, b in ipairs(workspace:GetDescendants()) do
                 if b:IsA("BasePart") and b.Name:lower():find("bullet") then
-                    b.CFrame = CFrame.new(b.Position, headPos)
-                    b.Position = headPos
+                    local direction = (headPos - b.Position).Unit
+                    local speed = 200 -- chỉnh tốc độ bullet
+                    -- Cập nhật vị trí theo hướng
+                    b.CFrame = CFrame.new(b.Position + direction * speed * RunService.RenderStepped:Wait(), headPos)
                 end
             end
         end
@@ -744,11 +745,12 @@ for _, v in pairs(getconnections(LP.Idled)) do v:Disable() end
 
 
 local magicbullet = true
+local bulletSpeed = 300
 local espObjects = {}
 
+-- Lấy target player/NPC/mob
 local function getTargets()
     local targets = {}
-    -- players
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= LP and p.Character and p.Character:FindFirstChild("Humanoid") and p.Character:FindFirstChild("Head") then
             if p.Team ~= LP.Team then
@@ -756,8 +758,7 @@ local function getTargets()
             end
         end
     end
-    -- NPC / mob
-    for _, obj in ipairs(workspace:GetChildren()) do
+    for _, obj in ipairs(Workspace:GetChildren()) do
         if obj:IsA("Model") and obj:FindFirstChild("Humanoid") and obj:FindFirstChild("Head") then
             if not Players:GetPlayerFromCharacter(obj) then
                 table.insert(targets, obj)
@@ -767,6 +768,7 @@ local function getTargets()
     return targets
 end
 
+-- ESP
 local function drawESP(target)
     if espObjects[target] then return espObjects[target] end
     local box = Drawing.new("Square")
@@ -785,6 +787,7 @@ local function removeESP(target)
     end
 end
 
+-- Target gần nhất so với trung tâm màn hình
 local function getClosestTarget()
     local targets = getTargets()
     local closest
@@ -805,17 +808,52 @@ local function getClosestTarget()
     return closest
 end
 
+-- Tạo đạn homing
+local function fireBullet(target)
+    if not LP.Character then return end
+    local tool = LP.Character:FindFirstChildOfClass("Tool")
+    if not tool or not tool:FindFirstChild("Handle") then return end
+    local head = target:FindFirstChild("Head")
+    if not head then return end
+
+    local bullet = Instance.new("Part")
+    bullet.Size = Vector3.new(0.2,0.2,0.2)
+    bullet.Shape = Enum.PartType.Ball
+    bullet.Material = Enum.Material.Neon
+    bullet.BrickColor = BrickColor.new("Bright yellow")
+    bullet.CFrame = tool.Handle.CFrame
+    bullet.CanCollide = false
+    bullet.Anchored = false
+    bullet.Parent = Workspace
+
+    local bv = Instance.new("BodyVelocity")
+    bv.MaxForce = Vector3.new(1e5,1e5,1e5)
+    bv.Velocity = (head.Position - bullet.Position).Unit * bulletSpeed
+    bv.Parent = bullet
+
+    local conn
+    conn = RunService.RenderStepped:Connect(function()
+        if not bullet or not bullet.Parent or not head or head.Parent == nil then
+            bullet:Destroy()
+            if conn then conn:Disconnect() end
+            return
+        end
+        bv.Velocity = (head.Position - bullet.Position).Unit * bulletSpeed
+        if (bullet.Position - head.Position).Magnitude < 2 then
+            bullet:Destroy()
+            if conn then conn:Disconnect() end
+        end
+    end)
+end
+
+-- Loop main
 RunService.RenderStepped:Connect(function()
     if not magicbullet then
-        -- tắt hết ESP
-        for t,_ in pairs(espObjects) do
-            removeESP(t)
-        end
+        for t,_ in pairs(espObjects) do removeESP(t) end
         return
     end
 
     local target = getClosestTarget()
-    -- remove ESP của target cũ
     for t,_ in pairs(espObjects) do
         if t ~= target then removeESP(t) end
     end
@@ -823,14 +861,7 @@ RunService.RenderStepped:Connect(function()
     if target then
         local head = target:FindFirstChild("Head")
         if head then
-            -- Magic bullet: hướng tool/Handle tới head
-            local tool = LP.Character and LP.Character:FindFirstChildOfClass("Tool")
-            if tool and tool:FindFirstChild("Handle") then
-                local proj = tool.Handle
-                proj.CFrame = CFrame.new(proj.Position, head.Position)
-                proj.Velocity = (head.Position - proj.Position).Unit * 300 -- tốc độ viên đạn
-            end
-            -- ESP
+            fireBullet(target)
             local sp, onScreen = Camera:WorldToViewportPoint(head.Position)
             if onScreen then
                 local box = drawESP(target)

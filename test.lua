@@ -745,10 +745,10 @@ for _, v in pairs(getconnections(LP.Idled)) do v:Disable() end
 
 
 local magicbullet = true
-local bulletSpeed = 300
+local bulletSpeed = 1e4 -- max tốc độ cực nhanh
 local espObjects = {}
 
--- Lấy target player/NPC/mob
+-- Lấy tất cả target
 local function getTargets()
     local targets = {}
     for _, p in ipairs(Players:GetPlayers()) do
@@ -787,7 +787,7 @@ local function removeESP(target)
     end
 end
 
--- Target gần nhất so với trung tâm màn hình
+-- Target gần trung tâm màn hình
 local function getClosestTarget()
     local targets = getTargets()
     local closest
@@ -808,7 +808,7 @@ local function getClosestTarget()
     return closest
 end
 
--- Tạo đạn homing
+-- Bullet homing cực nhanh, auto head
 local function fireBullet(target)
     if not LP.Character then return end
     local tool = LP.Character:FindFirstChildOfClass("Tool")
@@ -827,26 +827,29 @@ local function fireBullet(target)
     bullet.Parent = Workspace
 
     local bv = Instance.new("BodyVelocity")
-    bv.MaxForce = Vector3.new(1e5,1e5,1e5)
-    bv.Velocity = (head.Position - bullet.Position).Unit * bulletSpeed
+    bv.MaxForce = Vector3.new(1e6,1e6,1e6)
+    bv.Velocity = Vector3.zero
     bv.Parent = bullet
 
     local conn
     conn = RunService.RenderStepped:Connect(function()
         if not bullet or not bullet.Parent or not head or head.Parent == nil then
-            bullet:Destroy()
+            if bullet then bullet:Destroy() end
             if conn then conn:Disconnect() end
             return
         end
-        bv.Velocity = (head.Position - bullet.Position).Unit * bulletSpeed
-        if (bullet.Position - head.Position).Magnitude < 2 then
+        -- Hướng thẳng về head (360°)
+        local direction = (head.Position - bullet.Position).Unit
+        bv.Velocity = direction * bulletSpeed
+
+        if (bullet.Position - head.Position).Magnitude < 1 then
             bullet:Destroy()
             if conn then conn:Disconnect() end
         end
     end)
 end
 
--- Loop main
+-- Main loop
 RunService.RenderStepped:Connect(function()
     if not magicbullet then
         for t,_ in pairs(espObjects) do removeESP(t) end

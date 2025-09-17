@@ -722,16 +722,20 @@ for _, v in pairs(getconnections(LP.Idled)) do v:Disable() end
 
 
 
-
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
+local LP = Players.LocalPlayer
+local Camera = Workspace.CurrentCamera
+local Drawing = Drawing
 
 local magicbullet = true
 local bulletSpeed = 1e4
 local headOffset = Vector3.new(0,200,0)
-local headHitboxSize = 70
+local bulletSize = 70
 local activeBullets = {}
+local espBoxes = {}
 
--- Lấy target hợp lệ 360°, không team/mình
 local function getTargets()
     local targets = {}
     for _, p in ipairs(Players:GetPlayers()) do
@@ -751,7 +755,6 @@ local function getTargets()
     return targets
 end
 
--- Tạo bullet homing target
 local function fireBullet(target)
     if not LP.Character then return end
     local tool = LP.Character:FindFirstChildOfClass("Tool")
@@ -762,7 +765,7 @@ local function fireBullet(target)
     if not head or not humanoid then return end
 
     local bullet = Instance.new("Part")
-    bullet.Size = Vector3.new(headHitboxSize, headHitboxSize, headHitboxSize)
+    bullet.Size = Vector3.new(bulletSize, bulletSize, bulletSize)
     bullet.Shape = Enum.PartType.Ball
     bullet.Material = Enum.Material.Neon
     bullet.BrickColor = BrickColor.new("Bright yellow")
@@ -790,7 +793,7 @@ local function fireBullet(target)
         local aimPos = head.Position + headOffset
         bv.Velocity = (aimPos - bullet.Position).Unit * bulletSpeed
 
-        if (bullet.Position - aimPos).Magnitude < headHitboxSize/2 then
+        if (bullet.Position - aimPos).Magnitude < bulletSize/2 then
             if humanoid.Health > 0 then
                 humanoid:TakeDamage(100)
             end
@@ -801,22 +804,22 @@ local function fireBullet(target)
     end)
 end
 
--- Vẽ draw box target trực tiếp (bình thường)
-local function drawBox(target)
-    local head = target:FindFirstChild("Head")
-    if head then
-        local box = Instance.new("BoxHandleAdornment")
-        box.Adornee = target
-        box.Size = Vector3.new(3,5,1) -- có thể điều chỉnh cho phù hợp
-        box.Color3 = Color3.fromRGB(255,0,0)
-        box.AlwaysOnTop = true
-        box.ZIndex = 1
-        box.Parent = Workspace
-        task.defer(function() box:Destroy() end) -- destroy để update mỗi frame
+local function createESP(target)
+    if espBoxes[target] then return end
+    local box = Drawing.new("Square")
+    box.Color = Color3.fromRGB(255,0,0)
+    box.Thickness = 2
+    box.Filled = false
+    espBoxes[target] = box
+end
+
+local function removeESP(target)
+    if espBoxes[target] then
+        espBoxes[target]:Remove()
+        espBoxes[target] = nil
     end
 end
 
--- Main loop full auto + draw box
 RunService.RenderStepped:Connect(function()
     if not magicbullet then return end
     local targets = getTargets()
@@ -835,7 +838,20 @@ RunService.RenderStepped:Connect(function()
                 fireBullet(target)
             end
 
-            drawBox(target) -- draw box trực tiếp quanh target
+            createESP(target)
+            local box = espBoxes[target]
+            if box then
+                local screenPos, onScreen = Camera:WorldToViewportPoint(head.Position)
+                if onScreen then
+                    box.Position = Vector2.new(screenPos.X - 25, screenPos.Y - 25)
+                    box.Size = Vector2.new(50,50)
+                    box.Visible = true
+                else
+                    box.Visible = false
+                end
+            end
+        else
+            removeESP(target)
         end
     end
 end)

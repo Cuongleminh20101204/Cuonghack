@@ -742,10 +742,10 @@ for _, v in pairs(getconnections(LP.Idled)) do v:Disable() end
 -- end)
 
 
+
 local hitboxToggle = true
-local headHitboxSize = Vector3.new(50,80,50)
+local hitboxSize = Vector3.new(50,50,50)
 local originalSizes = {}
-local chamsBoxes = {}
 
 local targetNames = {
     "puzzles97glAss__Bot",
@@ -781,45 +781,29 @@ local function applyHeadHitbox(model)
         if not originalSizes[head] then
             originalSizes[head] = head.Size
         end
-        head.Size = headHitboxSize
+        head.Size = hitboxSize
         head.CanCollide = false
         head.Massless = true
         head.Transparency = 1
-
-        if not chamsBoxes[head] then
-            local box = Instance.new("BoxHandleAdornment")
-            box.Adornee = head
-            box.Size = head.Size
-            box.Color3 = Color3.new(1,0,0)
-            box.AlwaysOnTop = true
-            box.ZIndex = 10
-            box.Transparency = 0.5
-            box.Parent = head
-            chamsBoxes[head] = box
-        else
-            chamsBoxes[head].Size = head.Size
-        end
     elseif head and originalSizes[head] then
         head.Size = originalSizes[head]
         head.Transparency = 0
         originalSizes[head] = nil
-        if chamsBoxes[head] then
-            chamsBoxes[head]:Destroy()
-            chamsBoxes[head] = nil
-        end
     end
 end
 
 RunService.RenderStepped:Connect(function()
     if not hitboxToggle then return end
 
+    -- Players
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= LP and p.Character and p.Team ~= LP.Team then
             applyHeadHitbox(p.Character)
         end
     end
 
-    for _, obj in ipairs(Workspace:GetChildren()) do
+    -- NPC / Bot
+    for _, obj in ipairs(workspace:GetChildren()) do
         if obj:IsA("Model") and obj:FindFirstChild("Humanoid") and obj:FindFirstChild("Head") then
             if isTarget(obj) or not Players:GetPlayerFromCharacter(obj) then
                 applyHeadHitbox(obj)

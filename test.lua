@@ -741,73 +741,100 @@ for _, v in pairs(getconnections(LP.Idled)) do v:Disable() end
 --     end
 -- end)
 
-local HITBOX_SIZE = Vector3.new(30,30,30)
+
 
 local hitboxToggle = true
-local hitboxes = {}
+local headHitboxSize = Vector3.new(50,50,50)
+local originalSizes = {}
+local chamsParts = {}
 
-local function createHitbox(model)
-    if not model then return end
-    if hitboxes[model] then return hitboxes[model] end
+local targetNames = {
+    "puzzles97glAss__Bot",
+    "scIentistpoetry__Bot",
+    "zbbgx3__Bot",
+    "darkAdveNturer__Bot",
+    "AmiralCoNnoisseur__Bot",
+    "paradox__Bot",
+    "almsypc7__Bot",
+    "Space__Bot",
+    "cyborg861__Bot",
+    "76outlawsPaper__Bot",
+    "DefeaT998sensei__Bot",
+    "21MinOtaurcountry__Bot",
+    "ScienedeSign__Bot",
+    "viceambition__Bot",
+    "HumanoidRootPart",
+    "Head",
+}
 
-    local head = model:FindFirstChild("Head")
-    if not head then return end
-
-    local box = Instance.new("Part")
-    box.Name = "HitboxBox"
-    box.Anchored = true
-    box.CanCollide = false
-    box.Massless = true
-    box.Size = HITBOX_SIZE
-    box.Transparency = 0.5
-    box.BrickColor = BrickColor.new("Bright red")
-    box.Material = Enum.Material.Neon
-    box.Parent = Workspace
-
-    hitboxes[model] = box
-    return box
+local function isTarget(model)
+    if not model then return false end
+    for _, name in ipairs(targetNames) do
+        if model.Name == name then return true end
+    end
+    return false
 end
 
-local function updateHitbox(model)
-    if not model then return end
-    local humanoid = model:FindFirstChild("Humanoid")
-    local head = model:FindFirstChild("Head")
-    if not humanoid or humanoid.Health <= 0 or not head then
-        if hitboxes[model] then
-            hitboxes[model]:Destroy()
-            hitboxes[model] = nil
-        end
-        return
-    end
+local function createChams(head)
+    if chamsParts[head] then return chamsParts[head] end
+    local cham = Instance.new("Part")
+    cham.Name = "HitboxChams"
+    cham.Anchored = true
+    cham.CanCollide = false
+    cham.Size = headHitboxSize
+    cham.Material = Enum.Material.Neon
+    cham.BrickColor = BrickColor.new("Bright red")
+    cham.Transparency = 0.5
+    cham.Parent = workspace
+    chamsParts[head] = cham
+    return cham
+end
 
-    local box = createHitbox(model)
-    box.CFrame = head.CFrame
-    head.Transparency = 1
+local function removeChams(head)
+    if chamsParts[head] then
+        pcall(function() chamsParts[head]:Destroy() end)
+        chamsParts[head] = nil
+    end
+end
+
+local function applyHeadHitbox(model)
+    local head = model:FindFirstChild("Head")
+    local humanoid = model:FindFirstChild("Humanoid")
+    if head and humanoid and humanoid.Health > 0 then
+        if not originalSizes[head] then
+            originalSizes[head] = head.Size
+        end
+        head.Size = headHitboxSize
+        head.CanCollide = false
+        head.Massless = true
+        head.Transparency = 1
+
+        -- tạo chams xung quanh head
+        local cham = createChams(head)
+        cham.CFrame = head.CFrame
+        cham.Size = headHitboxSize
+    elseif head and originalSizes[head] then
+        head.Size = originalSizes[head]
+        head.Transparency = 0
+        originalSizes[head] = nil
+        removeChams(head)
+    end
 end
 
 RunService.RenderStepped:Connect(function()
     if not hitboxToggle then return end
 
-    -- Players
     for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= LP and p.Character and p.Team ~= LP.Team then
-            updateHitbox(p.Character)
+        if p ~= LP and p.Character and p.Team ~= LP.Team and isTarget(p.Character) then
+            applyHeadHitbox(p.Character)
         end
     end
 
-    -- NPC / Mob
-    for _, obj in ipairs(Workspace:GetChildren()) do
+    for _, obj in ipairs(workspace:GetChildren()) do
         if obj:IsA("Model") and obj:FindFirstChild("Humanoid") and obj:FindFirstChild("Head") then
-            if not Players:GetPlayerFromCharacter(obj) then
-                updateHitbox(obj)
+            if isTarget(obj) or not Players:GetPlayerFromCharacter(obj) then
+                applyHeadHitbox(obj)
             end
         end
-    end
-end)
-
-Players.PlayerRemoving:Connect(function(p)
-    if p.Character and hitboxes[p.Character] then
-        hitboxes[p.Character]:Destroy()
-        hitboxes[p.Character] = nil
     end
 end)

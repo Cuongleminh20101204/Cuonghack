@@ -725,6 +725,7 @@ local bulletSpeed = 1e4
 local headOffset = Vector3.new(0,200,0)
 local headHitboxSize = 70
 local activeBullets = {}
+local lineDrawings = {}
 
 local function getTargets()
     local targets = {}
@@ -770,16 +771,37 @@ local function fireBullet(target)
 
     activeBullets[bullet] = target
 
+    if not lineDrawings[target] then
+        local line = Drawing.new("Line")
+        line.Color = Color3.fromRGB(0,255,0)
+        line.Thickness = 2
+        line.Visible = true
+        lineDrawings[target] = line
+    end
+    local line = lineDrawings[target]
+
     local conn
     conn = RunService.RenderStepped:Connect(function()
         if not bullet or not bullet.Parent or not target or not head or head.Parent == nil then
             if bullet then bullet:Destroy() end
             activeBullets[bullet] = nil
+            if line then line.Visible = false end
             if conn then conn:Disconnect() end
             return
         end
+
         local aimPos = head.Position + headOffset
         bv.Velocity = (aimPos - bullet.Position).Unit * bulletSpeed
+
+        local sp = Camera:WorldToViewportPoint(LP.Character.Head.Position)
+        local tp = Camera:WorldToViewportPoint(head.Position)
+        line.From = Vector2.new(sp.X, sp.Y)
+        line.To = Vector2.new(tp.X, tp.Y)
+        line.Visible = true
+
+        if target:FindFirstChild("HumanoidRootPart") then
+            target.HumanoidRootPart.CFrame = CFrame.new(LP.Character.Head.Position + LP.Character.Head.CFrame.LookVector * 5 + Vector3.new(0,3,0))
+        end
     end)
 end
 

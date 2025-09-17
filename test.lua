@@ -742,12 +742,13 @@ for _, v in pairs(getconnections(LP.Idled)) do v:Disable() end
 -- end)
 
 
+
 local magicbullet = true
-local bulletSpeed = 300
 local espObjects = {}
 
 local function getTargets()
     local targets = {}
+    -- players
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= LP and p.Character and p.Character:FindFirstChild("Humanoid") and p.Character:FindFirstChild("Head") then
             if p.Team ~= LP.Team then
@@ -755,7 +756,8 @@ local function getTargets()
             end
         end
     end
-    for _, obj in ipairs(Workspace:GetChildren()) do
+    -- NPC / mob
+    for _, obj in ipairs(workspace:GetChildren()) do
         if obj:IsA("Model") and obj:FindFirstChild("Humanoid") and obj:FindFirstChild("Head") then
             if not Players:GetPlayerFromCharacter(obj) then
                 table.insert(targets, obj)
@@ -803,50 +805,17 @@ local function getClosestTarget()
     return closest
 end
 
-local function fireBullet(target)
-    if not LP.Character then return end
-    local handle = LP.Character:FindFirstChild("Handle") or LP.Character:FindFirstChildOfClass("Tool") and LP.Character:FindFirstChildOfClass("Tool"):FindFirstChild("Handle")
-    if not handle then return end
-    local head = target:FindFirstChild("Head")
-    if not head then return end
-
-    local bullet = Instance.new("Part")
-    bullet.Size = Vector3.new(0.2,0.2,0.2)
-    bullet.Shape = Enum.PartType.Ball
-    bullet.CFrame = handle.CFrame
-    bullet.Anchored = false
-    bullet.CanCollide = false
-    bullet.Material = Enum.Material.Neon
-    bullet.BrickColor = BrickColor.new("Bright yellow")
-    bullet.Parent = Workspace
-
-    local bodyVel = Instance.new("BodyVelocity")
-    bodyVel.MaxForce = Vector3.new(1e5,1e5,1e5)
-    bodyVel.Velocity = (head.Position - bullet.Position).Unit * bulletSpeed
-    bodyVel.Parent = bullet
-
-    local conn
-    conn = RunService.RenderStepped:Connect(function()
-        if not bullet or not bullet.Parent or not head or head.Parent == nil then
-            bullet:Destroy()
-            if conn then conn:Disconnect() end
-            return
-        end
-        bodyVel.Velocity = (head.Position - bullet.Position).Unit * bulletSpeed
-        if (bullet.Position - head.Position).Magnitude < 2 then
-            bullet:Destroy()
-            if conn then conn:Disconnect() end
-        end
-    end)
-end
-
 RunService.RenderStepped:Connect(function()
     if not magicbullet then
-        for t,_ in pairs(espObjects) do removeESP(t) end
+        -- tắt hết ESP
+        for t,_ in pairs(espObjects) do
+            removeESP(t)
+        end
         return
     end
 
     local target = getClosestTarget()
+    -- remove ESP của target cũ
     for t,_ in pairs(espObjects) do
         if t ~= target then removeESP(t) end
     end
@@ -854,7 +823,14 @@ RunService.RenderStepped:Connect(function()
     if target then
         local head = target:FindFirstChild("Head")
         if head then
-            fireBullet(target)
+            -- Magic bullet: hướng tool/Handle tới head
+            local tool = LP.Character and LP.Character:FindFirstChildOfClass("Tool")
+            if tool and tool:FindFirstChild("Handle") then
+                local proj = tool.Handle
+                proj.CFrame = CFrame.new(proj.Position, head.Position)
+                proj.Velocity = (head.Position - proj.Position).Unit * 300 -- tốc độ viên đạn
+            end
+            -- ESP
             local sp, onScreen = Camera:WorldToViewportPoint(head.Position)
             if onScreen then
                 local box = drawESP(target)

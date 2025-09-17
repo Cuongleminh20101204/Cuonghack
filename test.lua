@@ -720,31 +720,12 @@ for _, v in pairs(getconnections(LP.Idled)) do v:Disable() end
 --     end
 -- end)
 
---// Settings
 local magicbullet = true
 local bulletSpeed = 1e4
-local headOffset = Vector3.new(0,150,0) -- nâng cực cao
-local headHitboxSize = 50
+local headOffset = Vector3.new(0,200,0)
+local headHitboxSize = 70
 local activeBullets = {}
-local lineDrawing = nil
 
--- Tạo line vẽ từ camera đến target
-local function drawLine(target)
-    if not target or not target:FindFirstChild("Head") then return end
-    if not lineDrawing then
-        lineDrawing = Drawing.new("Line")
-        lineDrawing.Color = Color3.fromRGB(0,255,0)
-        lineDrawing.Thickness = 2
-        lineDrawing.Visible = true
-    end
-    local sp = Camera:WorldToViewportPoint(LP.Character.Head.Position)
-    local tp = Camera:WorldToViewportPoint(target.Head.Position)
-    lineDrawing.From = Vector2.new(sp.X, sp.Y)
-    lineDrawing.To = Vector2.new(tp.X, tp.Y)
-    lineDrawing.Visible = true
-end
-
--- Lấy target hợp lệ 360° (không team/mình)
 local function getTargets()
     local targets = {}
     for _, p in ipairs(Players:GetPlayers()) do
@@ -764,18 +745,16 @@ local function getTargets()
     return targets
 end
 
--- Bullet homing cực nhanh 360°
 local function fireBullet(target)
     if not LP.Character then return end
     local tool = LP.Character:FindFirstChildOfClass("Tool")
     if not tool or not tool:FindFirstChild("Handle") then return end
     local head = target:FindFirstChild("Head")
-    if not head then return end
-
-    local aimPos = head.Position + headOffset
+    local humanoid = target:FindFirstChild("Humanoid")
+    if not head or not humanoid then return end
 
     local bullet = Instance.new("Part")
-    bullet.Size = Vector3.new(0.2,0.2,0.2)
+    bullet.Size = Vector3.new(headHitboxSize, headHitboxSize, headHitboxSize)
     bullet.Shape = Enum.PartType.Ball
     bullet.Material = Enum.Material.Neon
     bullet.BrickColor = BrickColor.new("Bright yellow")
@@ -799,56 +778,28 @@ local function fireBullet(target)
             if conn then conn:Disconnect() end
             return
         end
-        -- Bullet 360° homing liên tục
-        aimPos = head.Position + headOffset
+        local aimPos = head.Position + headOffset
         bv.Velocity = (aimPos - bullet.Position).Unit * bulletSpeed
-
-        if (bullet.Position - aimPos).Magnitude < 1 then
-            bullet:Destroy()
-            activeBullets[bullet] = nil
-            if conn then conn:Disconnect() end
-        end
     end)
 end
 
--- Main loop
 RunService.RenderStepped:Connect(function()
-    if not magicbullet then
-        if lineDrawing then lineDrawing.Visible = false end
-        return
-    end
-
+    if not magicbullet then return end
     local targets = getTargets()
-    -- Lấy target gần nhất trước mặt camera (360° full hitbox)
-    local closestTarget
-    local shortest = math.huge
-    local camPos = Camera.CFrame.Position
-    for _, t in ipairs(targets) do
-        local head = t:FindFirstChild("Head")
-        if head and t:FindFirstChild("Humanoid") and t.Humanoid.Health > 0 then
-            local dist = (head.Position - camPos).Magnitude
-            if dist < shortest then
-                shortest = dist
-                closestTarget = t
+    for _, target in ipairs(targets) do
+        local head = target:FindFirstChild("Head")
+        local humanoid = target:FindFirstChild("Humanoid")
+        if head and humanoid and humanoid.Health > 0 then
+            local alreadyFiring = false
+            for b,tgt in pairs(activeBullets) do
+                if tgt == target then
+                    alreadyFiring = true
+                    break
+                end
+            end
+            if not alreadyFiring then
+                fireBullet(target)
             end
         end
-    end
-
-    if closestTarget then
-        drawLine(closestTarget)
-
-        -- Fire bullet nếu chưa tracking
-        local alreadyFiring = false
-        for b,tgt in pairs(activeBullets) do
-            if tgt == closestTarget then
-                alreadyFiring = true
-                break
-            end
-        end
-        if not alreadyFiring then
-            fireBullet(closestTarget)
-        end
-    else
-        if lineDrawing then lineDrawing.Visible = false end
     end
 end)

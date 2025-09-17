@@ -742,10 +742,8 @@ for _, v in pairs(getconnections(LP.Idled)) do v:Disable() end
 -- end)
 
 
-local hitboxToggle = true
-local hitboxSize = Vector3.new(30,30,30)
-local hitboxColor = BrickColor.new("Bright red")
-local hitboxes = {}
+
+local magicbullet = true -- bật/tắt Magic Bullet
 
 local targetNames = {
     "puzzles97glAss__Bot",
@@ -762,59 +760,92 @@ local targetNames = {
     "21MinOtaurcountry__Bot",
     "ScienedeSign__Bot",
     "viceambition__Bot",
-    "HumanoidRootPart",
-    "Head",
 }
 
-local function isTarget(model)
-    if not model then return false end
-    for _, name in ipairs(targetNames) do
-        if model.Name == name then return true end
+local espObjects = {}
+
+local function getTargets()
+    local targets = {}
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LP and p.Character and p.Character:FindFirstChild("Humanoid") and p.Character:FindFirstChild("Head") then
+            if p.Team ~= LP.Team then
+                table.insert(targets, p.Character)
+            end
+        end
     end
-    return false
+    for _, obj in ipairs(workspace:GetChildren()) do
+        if obj:IsA("Model") and obj:FindFirstChild("Humanoid") and obj:FindFirstChild("Head") then
+            if table.find(targetNames, obj.Name) then
+                table.insert(targets, obj)
+            end
+        end
+    end
+    return targets
 end
 
-local function applyHeadHitbox(model)
-    if not model then return end
-    local head = model:FindFirstChild("Head")
-    local humanoid = model:FindFirstChild("Humanoid")
-    if head and humanoid and humanoid.Health > 0 then
-        if not hitboxes[head] then
-            local hb = Instance.new("Part")
-            hb.Size = hitboxSize
-            hb.Anchored = true
-            hb.CanCollide = false
-            hb.Massless = true
-            hb.Transparency = 0.5
-            hb.Material = Enum.Material.Neon
-            hb.BrickColor = hitboxColor
-            hb.Parent = workspace
-            hitboxes[head] = hb
-        end
-        hitboxes[head].CFrame = head.CFrame
-    else
-        if hitboxes[head] then
-            hitboxes[head]:Destroy()
-            hitboxes[head] = nil
+local function drawESP(target)
+    if espObjects[target] then return espObjects[target] end
+    local box = Drawing.new("Square")
+    box.Color = Color3.fromRGB(255,0,0)
+    box.Thickness = 2
+    box.Filled = false
+    box.Visible = true
+    espObjects[target] = box
+    return box
+end
+
+local function removeESP(target)
+    if espObjects[target] then
+        espObjects[target]:Remove()
+        espObjects[target] = nil
+    end
+end
+
+local function getClosestTarget()
+    local targets = getTargets()
+    local closest
+    local shortest = math.huge
+    for _, t in ipairs(targets) do
+        local head = t:FindFirstChild("Head")
+        if head and t:FindFirstChild("Humanoid") and t.Humanoid.Health > 0 then
+            local screenPos, onScreen = Camera:WorldToViewportPoint(head.Position)
+            if onScreen then
+                local dist = (Vector2.new(screenPos.X, screenPos.Y) - Vector2.new(mouse.X, mouse.Y)).Magnitude
+                if dist < shortest then
+                    shortest = dist
+                    closest = t
+                end
+            end
         end
     end
+    return closest
 end
 
 RunService.RenderStepped:Connect(function()
-    if not hitboxToggle then return end
-
-    -- Player
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= LP and p.Character and p.Team ~= LP.Team then
-            applyHeadHitbox(p.Character)
-        end
+    if not magicbullet then
+        for t,_ in pairs(espObjects) do removeESP(t) end
+        return
     end
 
-    -- NPC / Bot
-    for _, obj in ipairs(workspace:GetChildren()) do
-        if obj:IsA("Model") and obj:FindFirstChild("Humanoid") then
-            if isTarget(obj) or not Players:GetPlayerFromCharacter(obj) then
-                applyHeadHitbox(obj)
+    local target = getClosestTarget()
+    for t,_ in pairs(espObjects) do
+        if t ~= target then removeESP(t) end
+    end
+
+    if target then
+        local head = target:FindFirstChild("Head")
+        if head then
+            local tool = LP.Character and LP.Character:FindFirstChildOfClass("Tool")
+            if tool and tool:FindFirstChild("Handle") then
+                tool.Handle.CFrame = CFrame.new(tool.Handle.Position, head.Position)
+            end
+
+            local sp, onScreen = Camera:WorldToViewportPoint(head.Position)
+            if onScreen then
+                local box = drawESP(target)
+                box.Position = Vector2.new(sp.X-10, sp.Y-10)
+                box.Size = Vector2.new(20,20)
+                box.Visible = true
             end
         end
     end

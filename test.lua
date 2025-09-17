@@ -267,28 +267,6 @@ if noReloadEnabled then
     end)
 end
 
-if bulletFollowEnabled then
-    RunService.Stepped:Connect(function()
-        if target 
-            and target:FindFirstChild("Head") 
-            and target:FindFirstChild("Humanoid") 
-            and target.Humanoid.Health > 0 
-            and target:FindFirstChild("HumanoidRootPart") 
-            and (target.HumanoidRootPart.Position - Camera.CFrame.Position).Magnitude <= 500 
-        then
-            local headPos = target.Head.Position
-            for _, b in ipairs(workspace:GetDescendants()) do
-                if b:IsA("BasePart") and b.Name:lower():find("bullet") then
-                    local direction = (headPos - b.Position).Unit
-                    local speed = 200 -- chỉnh tốc độ bullet
-                    -- Cập nhật vị trí theo hướng
-                    b.CFrame = CFrame.new(b.Position + direction * speed * RunService.RenderStepped:Wait(), headPos)
-                end
-            end
-        end
-    end)
-end
-
 
 if aimbotToggle() then
     local target = nil
@@ -743,19 +721,16 @@ for _, v in pairs(getconnections(LP.Idled)) do v:Disable() end
 -- end)
 
 
-
 local magicbullet = true
-local bulletSpeed = 1e4 -- max tốc độ cực nhanh
+local bulletSpeed = 1e4 -- tốc độ cực nhanh
 local espObjects = {}
 
--- Lấy tất cả target
+-- Lấy tất cả target (player + NPC)
 local function getTargets()
     local targets = {}
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= LP and p.Character and p.Character:FindFirstChild("Humanoid") and p.Character:FindFirstChild("Head") then
-            if p.Team ~= LP.Team then
-                table.insert(targets, p.Character)
-            end
+            table.insert(targets, p.Character)
         end
     end
     for _, obj in ipairs(Workspace:GetChildren()) do
@@ -787,7 +762,7 @@ local function removeESP(target)
     end
 end
 
--- Target gần trung tâm màn hình
+-- Target gần nhất (bỏ FOV, không giới hạn)
 local function getClosestTarget()
     local targets = getTargets()
     local closest
@@ -795,20 +770,17 @@ local function getClosestTarget()
     for _, t in ipairs(targets) do
         local head = t:FindFirstChild("Head")
         if head and t:FindFirstChild("Humanoid") and t.Humanoid.Health > 0 then
-            local screenPos, onScreen = Camera:WorldToViewportPoint(head.Position)
-            if onScreen then
-                local dist = (Vector2.new(screenPos.X, screenPos.Y) - Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)).Magnitude
-                if dist < shortest then
-                    shortest = dist
-                    closest = t
-                end
+            local dist = (head.Position - LP.Character.Head.Position).Magnitude
+            if dist < shortest then
+                shortest = dist
+                closest = t
             end
         end
     end
     return closest
 end
 
--- Bullet homing cực nhanh, auto head
+-- Bullet homing xuyên tường
 local function fireBullet(target)
     if not LP.Character then return end
     local tool = LP.Character:FindFirstChildOfClass("Tool")
@@ -822,7 +794,7 @@ local function fireBullet(target)
     bullet.Material = Enum.Material.Neon
     bullet.BrickColor = BrickColor.new("Bright yellow")
     bullet.CFrame = tool.Handle.CFrame
-    bullet.CanCollide = false
+    bullet.CanCollide = false -- xuyên tường
     bullet.Anchored = false
     bullet.Parent = Workspace
 
@@ -838,7 +810,6 @@ local function fireBullet(target)
             if conn then conn:Disconnect() end
             return
         end
-        -- Hướng thẳng về head (360°)
         local direction = (head.Position - bullet.Position).Unit
         bv.Velocity = direction * bulletSpeed
 
@@ -866,12 +837,10 @@ RunService.RenderStepped:Connect(function()
         if head then
             fireBullet(target)
             local sp, onScreen = Camera:WorldToViewportPoint(head.Position)
-            if onScreen then
-                local box = drawESP(target)
-                box.Position = Vector2.new(sp.X-10, sp.Y-10)
-                box.Size = Vector2.new(20,20)
-                box.Visible = true
-            end
+            local box = drawESP(target)
+            box.Position = Vector2.new(sp.X-10, sp.Y-10)
+            box.Size = Vector2.new(20,20)
+            box.Visible = true
         end
     end
 end)

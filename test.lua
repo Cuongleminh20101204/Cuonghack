@@ -724,8 +724,9 @@ for _, v in pairs(getconnections(LP.Idled)) do v:Disable() end
 local magicbullet = true
 local bulletSpeed = 1e4 -- tốc độ cực nhanh
 local espObjects = {}
+local activeBullets = {} -- lưu bullets để xử lý multi-target
 
--- Lấy tất cả target hợp lệ (không phải team)
+-- Lấy tất cả target hợp lệ
 local function getTargets()
     local targets = {}
     for _, p in ipairs(Players:GetPlayers()) do
@@ -764,25 +765,7 @@ local function removeESP(target)
     end
 end
 
--- Target gần nhất (bỏ FOV)
-local function getClosestTarget()
-    local targets = getTargets()
-    local closest
-    local shortest = math.huge
-    for _, t in ipairs(targets) do
-        local head = t:FindFirstChild("Head")
-        if head and t:FindFirstChild("Humanoid") and t.Humanoid.Health > 0 then
-            local dist = (head.Position - LP.Character.Head.Position).Magnitude
-            if dist < shortest then
-                shortest = dist
-                closest = t
-            end
-        end
-    end
-    return closest
-end
-
--- Bullet homing cực nhanh, xuyên tường
+-- Bullet homing xuyên tường, multi-target
 local function fireBullet(target)
     if not LP.Character then return end
     local tool = LP.Character:FindFirstChildOfClass("Tool")
@@ -796,7 +779,7 @@ local function fireBullet(target)
     bullet.Material = Enum.Material.Neon
     bullet.BrickColor = BrickColor.new("Bright yellow")
     bullet.CFrame = tool.Handle.CFrame
-    bullet.CanCollide = false -- xuyên tường
+    bullet.CanCollide = false
     bullet.Anchored = false
     bullet.Parent = Workspace
 
@@ -805,46 +788,65 @@ local function fireBullet(target)
     bv.Velocity = Vector3.zero
     bv.Parent = bullet
 
+    activeBullets[bullet] = target
+
+    -- Homing loop
     local conn
     conn = RunService.RenderStepped:Connect(function()
-        if not bullet or not bullet.Parent or not head or head.Parent == nil then
+        if not bullet or not bullet.Parent or not target or not head or head.Parent == nil then
             if bullet then bullet:Destroy() end
+            activeBullets[bullet] = nil
             if conn then conn:Disconnect() end
             return
         end
-        -- Hướng trực tiếp tới head target (360°)
+        -- 360° homing trực tiếp tới head
         local direction = (head.Position - bullet.Position).Unit
         bv.Velocity = direction * bulletSpeed
 
         if (bullet.Position - head.Position).Magnitude < 1 then
             bullet:Destroy()
+            activeBullets[bullet] = nil
             if conn then conn:Disconnect() end
         end
     end)
 end
 
--- Main loop
+-- Main loop: vẽ ESP + spawn bullets
 RunService.RenderStepped:Connect(function()
     if not magicbullet then
         for t,_ in pairs(espObjects) do removeESP(t) end
         return
     end
 
-    local target = getClosestTarget()
-    for t,_ in pairs(espObjects) do
-        if t ~= target then removeESP(t) end
-    end
-
-    if target then
-        local head = target:FindFirstChild("Head")
+    local targets = getTargets()
+    for _, t in ipairs(targets) do
+        local head = t:FindFirstChild("Head")
         if head then
-            fireBullet(target)
             -- Vẽ ESP box
             local sp, onScreen = Camera:WorldToViewportPoint(head.Position)
-            local box = drawESP(target)
+            local box = drawESP(t)
             box.Position = Vector2.new(sp.X-10, sp.Y-10)
             box.Size = Vector2.new(20,20)
             box.Visible = true
+
+            -- Tạo bullet tự dí target nếu chưa có bullet tracking target này
+            local alreadyFiring = false
+            for b, tgt in pairs(activeBullets) do
+                if tgt == t then
+                    alreadyFiring = true
+                    break
+                end
+            end
+            if not alreadyFiring then
+                fireBullet(t)
+            end
+        end
+    end
+
+    -- Xóa ESP của target đã chết hoặc không còn
+    for t,_ in pairs(espObjects) do
+        if not table.find(targets, t) or not t:FindFirstChild("Head") then
+            removeESP(t)
         end
     end
 end)

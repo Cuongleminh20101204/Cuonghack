@@ -721,12 +721,14 @@ for _, v in pairs(getconnections(LP.Idled)) do v:Disable() end
 -- end)
 
 
+--// Settings
 local magicbullet = true
-local bulletSpeed = 1e4
+local bulletSpeed = 1e4 -- tốc độ cực nhanh
+local headOffset = Vector3.new(0,1.5,0) -- nâng bullet lên cao hơn head
 local espObjects = {}
 local activeBullets = {}
 
--- Lấy tất cả target hợp lệ
+--// Lấy tất cả target hợp lệ
 local function getTargets()
     local targets = {}
     for _, p in ipairs(Players:GetPlayers()) do
@@ -746,26 +748,36 @@ local function getTargets()
     return targets
 end
 
--- ESP
+--// ESP box + text XYZ
 local function drawESP(target)
     if espObjects[target] then return espObjects[target] end
+
     local box = Drawing.new("Square")
     box.Color = Color3.fromRGB(255,0,0)
-    box.Thickness = 2
+    box.Thickness = 3
     box.Filled = false
     box.Visible = true
-    espObjects[target] = box
-    return box
+
+    local text = Drawing.new("Text")
+    text.Color = Color3.fromRGB(255,255,0)
+    text.Size = 18
+    text.Center = true
+    text.Outline = true
+    text.Visible = true
+
+    espObjects[target] = {box = box, text = text}
+    return espObjects[target]
 end
 
 local function removeESP(target)
     if espObjects[target] then
-        espObjects[target]:Remove()
+        espObjects[target].box:Remove()
+        espObjects[target].text:Remove()
         espObjects[target] = nil
     end
 end
 
--- Target gần nhất 360°
+--// Target gần nhất 360° (không giới hạn FOV)
 local function getClosestTarget360()
     local targets = getTargets()
     local closest
@@ -786,13 +798,15 @@ local function getClosestTarget360()
     return closest
 end
 
--- Bullet homing xuyên tường
+--// Bullet homing xuyên tường + offset XYZ
 local function fireBullet(target)
     if not LP.Character then return end
     local tool = LP.Character:FindFirstChildOfClass("Tool")
     if not tool or not tool:FindFirstChild("Handle") then return end
     local head = target:FindFirstChild("Head")
     if not head then return end
+
+    local aimPos = head.Position + headOffset -- nâng bullet lên head + offset
 
     local bullet = Instance.new("Part")
     bullet.Size = Vector3.new(0.2,0.2,0.2)
@@ -819,10 +833,10 @@ local function fireBullet(target)
             if conn then conn:Disconnect() end
             return
         end
-        local direction = (head.Position - bullet.Position).Unit
+        local direction = (aimPos - bullet.Position).Unit
         bv.Velocity = direction * bulletSpeed
 
-        if (bullet.Position - head.Position).Magnitude < 1 then
+        if (bullet.Position - aimPos).Magnitude < 1 then
             bullet:Destroy()
             activeBullets[bullet] = nil
             if conn then conn:Disconnect() end
@@ -830,7 +844,7 @@ local function fireBullet(target)
     end)
 end
 
--- Main loop: cập nhật ESP + tạo bullet
+--// Main loop
 RunService.RenderStepped:Connect(function()
     if not magicbullet then
         for t,_ in pairs(espObjects) do removeESP(t) end
@@ -841,18 +855,25 @@ RunService.RenderStepped:Connect(function()
     for _, t in ipairs(targets) do
         local head = t:FindFirstChild("Head")
         if head then
-            -- ESP luôn cập nhật theo head
             local sp, onScreen = Camera:WorldToViewportPoint(head.Position)
-            local box = drawESP(t)
+            local esp = drawESP(t)
             if onScreen then
-                box.Position = Vector2.new(sp.X-10, sp.Y-10)
-                box.Size = Vector2.new(20,20)
-                box.Visible = true
+                -- Box lớn hơn
+                esp.box.Position = Vector2.new(sp.X-20, sp.Y-20)
+                esp.box.Size = Vector2.new(40,40)
+                esp.box.Visible = true
+
+                -- Text X Y Z
+                local pos = head.Position
+                esp.text.Position = Vector2.new(sp.X, sp.Y - 30)
+                esp.text.Text = string.format("X: %.1f Y: %.1f Z: %.1f", pos.X, pos.Y, pos.Z)
+                esp.text.Visible = true
             else
-                box.Visible = false
+                esp.box.Visible = false
+                esp.text.Visible = false
             end
 
-            -- Tạo bullet nếu chưa tracking target
+            -- Bullet tự dí target nếu chưa có
             local alreadyFiring = false
             for b, tgt in pairs(activeBullets) do
                 if tgt == t then
@@ -866,7 +887,7 @@ RunService.RenderStepped:Connect(function()
         end
     end
 
-    -- Xóa ESP của target đã chết
+    -- Xóa ESP target chết
     for t,_ in pairs(espObjects) do
         if not t:FindFirstChild("Head") or not t:FindFirstChild("Humanoid") or t.Humanoid.Health <= 0 then
             removeESP(t)

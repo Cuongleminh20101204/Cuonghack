@@ -742,26 +742,8 @@ for _, v in pairs(getconnections(LP.Idled)) do v:Disable() end
 -- end)
 
 
-
-local magicbullet = true -- bật/tắt Magic Bullet
-
-local targetNames = {
-    "puzzles97glAss__Bot",
-    "scIentistpoetry__Bot",
-    "zbbgx3__Bot",
-    "darkAdveNturer__Bot",
-    "AmiralCoNnoisseur__Bot",
-    "paradox__Bot",
-    "almsypc7__Bot",
-    "Space__Bot",
-    "cyborg861__Bot",
-    "76outlawsPaper__Bot",
-    "DefeaT998sensei__Bot",
-    "21MinOtaurcountry__Bot",
-    "ScienedeSign__Bot",
-    "viceambition__Bot",
-}
-
+local magicbullet = true
+local bulletSpeed = 300
 local espObjects = {}
 
 local function getTargets()
@@ -773,9 +755,9 @@ local function getTargets()
             end
         end
     end
-    for _, obj in ipairs(workspace:GetChildren()) do
+    for _, obj in ipairs(Workspace:GetChildren()) do
         if obj:IsA("Model") and obj:FindFirstChild("Humanoid") and obj:FindFirstChild("Head") then
-            if table.find(targetNames, obj.Name) then
+            if not Players:GetPlayerFromCharacter(obj) then
                 table.insert(targets, obj)
             end
         end
@@ -810,7 +792,7 @@ local function getClosestTarget()
         if head and t:FindFirstChild("Humanoid") and t.Humanoid.Health > 0 then
             local screenPos, onScreen = Camera:WorldToViewportPoint(head.Position)
             if onScreen then
-                local dist = (Vector2.new(screenPos.X, screenPos.Y) - Vector2.new(mouse.X, mouse.Y)).Magnitude
+                local dist = (Vector2.new(screenPos.X, screenPos.Y) - Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)).Magnitude
                 if dist < shortest then
                     shortest = dist
                     closest = t
@@ -819,6 +801,43 @@ local function getClosestTarget()
         end
     end
     return closest
+end
+
+local function fireBullet(target)
+    if not LP.Character then return end
+    local handle = LP.Character:FindFirstChild("Handle") or LP.Character:FindFirstChildOfClass("Tool") and LP.Character:FindFirstChildOfClass("Tool"):FindFirstChild("Handle")
+    if not handle then return end
+    local head = target:FindFirstChild("Head")
+    if not head then return end
+
+    local bullet = Instance.new("Part")
+    bullet.Size = Vector3.new(0.2,0.2,0.2)
+    bullet.Shape = Enum.PartType.Ball
+    bullet.CFrame = handle.CFrame
+    bullet.Anchored = false
+    bullet.CanCollide = false
+    bullet.Material = Enum.Material.Neon
+    bullet.BrickColor = BrickColor.new("Bright yellow")
+    bullet.Parent = Workspace
+
+    local bodyVel = Instance.new("BodyVelocity")
+    bodyVel.MaxForce = Vector3.new(1e5,1e5,1e5)
+    bodyVel.Velocity = (head.Position - bullet.Position).Unit * bulletSpeed
+    bodyVel.Parent = bullet
+
+    local conn
+    conn = RunService.RenderStepped:Connect(function()
+        if not bullet or not bullet.Parent or not head or head.Parent == nil then
+            bullet:Destroy()
+            if conn then conn:Disconnect() end
+            return
+        end
+        bodyVel.Velocity = (head.Position - bullet.Position).Unit * bulletSpeed
+        if (bullet.Position - head.Position).Magnitude < 2 then
+            bullet:Destroy()
+            if conn then conn:Disconnect() end
+        end
+    end)
 end
 
 RunService.RenderStepped:Connect(function()
@@ -835,11 +854,7 @@ RunService.RenderStepped:Connect(function()
     if target then
         local head = target:FindFirstChild("Head")
         if head then
-            local tool = LP.Character and LP.Character:FindFirstChildOfClass("Tool")
-            if tool and tool:FindFirstChild("Handle") then
-                tool.Handle.CFrame = CFrame.new(tool.Handle.Position, head.Position)
-            end
-
+            fireBullet(target)
             local sp, onScreen = Camera:WorldToViewportPoint(head.Position)
             if onScreen then
                 local box = drawESP(target)

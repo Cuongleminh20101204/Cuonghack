@@ -725,12 +725,14 @@ local magicbullet = true
 local bulletSpeed = 1e4 -- tốc độ cực nhanh
 local espObjects = {}
 
--- Lấy tất cả target (player + NPC)
+-- Lấy tất cả target hợp lệ (không phải team)
 local function getTargets()
     local targets = {}
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= LP and p.Character and p.Character:FindFirstChild("Humanoid") and p.Character:FindFirstChild("Head") then
-            table.insert(targets, p.Character)
+            if p.Team ~= LP.Team then
+                table.insert(targets, p.Character)
+            end
         end
     end
     for _, obj in ipairs(Workspace:GetChildren()) do
@@ -762,7 +764,7 @@ local function removeESP(target)
     end
 end
 
--- Target gần nhất (bỏ FOV, không giới hạn)
+-- Target gần nhất (bỏ FOV)
 local function getClosestTarget()
     local targets = getTargets()
     local closest
@@ -780,7 +782,7 @@ local function getClosestTarget()
     return closest
 end
 
--- Bullet homing xuyên tường
+-- Bullet homing cực nhanh, xuyên tường
 local function fireBullet(target)
     if not LP.Character then return end
     local tool = LP.Character:FindFirstChildOfClass("Tool")
@@ -810,6 +812,7 @@ local function fireBullet(target)
             if conn then conn:Disconnect() end
             return
         end
+        -- Hướng trực tiếp tới head target (360°)
         local direction = (head.Position - bullet.Position).Unit
         bv.Velocity = direction * bulletSpeed
 
@@ -836,6 +839,7 @@ RunService.RenderStepped:Connect(function()
         local head = target:FindFirstChild("Head")
         if head then
             fireBullet(target)
+            -- Vẽ ESP box
             local sp, onScreen = Camera:WorldToViewportPoint(head.Position)
             local box = drawESP(target)
             box.Position = Vector2.new(sp.X-10, sp.Y-10)

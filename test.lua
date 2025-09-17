@@ -720,91 +720,90 @@ for _, v in pairs(getconnections(LP.Idled)) do v:Disable() end
 --     end
 -- end)
 
-local magicbullet = true
-local bulletSpeed = 1e4
-local headOffset = Vector3.new(0,200,0)
-local headHitboxSize = 70
-local activeBullets = {}
-local lineDrawings = {}
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local LP = Players.LocalPlayer
 
+local magicbullet = true -- bật/tắt tính năng bullet tự bám head
+local bulletSpeed = 1e4 -- tốc độ bullet
+local headOffset = Vector3.new(0,200,0) -- nâng vị trí head lên để bullet dễ trúng
+local headHitboxSize = 70 -- kích thước hitbox bullet
+local activeBullets = {} -- lưu các bullet đang active với target
+
+-- Lấy tất cả target hợp lệ (360°, không team/mình)
 local function getTargets()
     local targets = {}
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= LP and p.Character and p.Character:FindFirstChild("Humanoid") and p.Character:FindFirstChild("Head") then
             if p.Team ~= LP.Team then
-                table.insert(targets, p.Character)
+                table.insert(targets, p.Character) -- thêm player địch vào target
             end
         end
     end
     for _, obj in ipairs(Workspace:GetChildren()) do
         if obj:IsA("Model") and obj:FindFirstChild("Humanoid") and obj:FindFirstChild("Head") then
             if not Players:GetPlayerFromCharacter(obj) then
-                table.insert(targets, obj)
+                table.insert(targets, obj) -- thêm NPC hoặc model không phải player
             end
         end
     end
     return targets
 end
 
+-- Tạo bullet và tự động homing vào head target
 local function fireBullet(target)
     if not LP.Character then return end
     local tool = LP.Character:FindFirstChildOfClass("Tool")
     if not tool or not tool:FindFirstChild("Handle") then return end
+
     local head = target:FindFirstChild("Head")
     local humanoid = target:FindFirstChild("Humanoid")
     if not head or not humanoid then return end
 
     local bullet = Instance.new("Part")
-    bullet.Size = Vector3.new(headHitboxSize, headHitboxSize, headHitboxSize)
+    bullet.Size = Vector3.new(headHitboxSize, headHitboxSize, headHitboxSize) -- hitbox lớn
     bullet.Shape = Enum.PartType.Ball
     bullet.Material = Enum.Material.Neon
     bullet.BrickColor = BrickColor.new("Bright yellow")
-    bullet.CFrame = tool.Handle.CFrame
+    bullet.CFrame = tool.Handle.CFrame -- xuất phát từ tool
     bullet.CanCollide = false
     bullet.Anchored = false
     bullet.Parent = Workspace
 
     local bv = Instance.new("BodyVelocity")
-    bv.MaxForce = Vector3.new(1e6,1e6,1e6)
+    bv.MaxForce = Vector3.new(1e6,1e6,1e6) -- lực bullet
     bv.Velocity = Vector3.zero
     bv.Parent = bullet
 
-    activeBullets[bullet] = target
-
-    if not lineDrawings[target] then
-        local line = Drawing.new("Line")
-        line.Color = Color3.fromRGB(0,255,0)
-        line.Thickness = 2
-        line.Visible = true
-        lineDrawings[target] = line
-    end
-    local line = lineDrawings[target]
+    activeBullets[bullet] = target -- lưu bullet với target
 
     local conn
     conn = RunService.RenderStepped:Connect(function()
-        if not bullet or not bullet.Parent or not target or not head or head.Parent == nil then
+        -- kiểm tra bullet hoặc target còn tồn tại
+        if not bullet or not bullet.Parent or not target or not head or head.Parent == nil or humanoid.Health <= 0 then
             if bullet then bullet:Destroy() end
             activeBullets[bullet] = nil
-            if line then line.Visible = false end
             if conn then conn:Disconnect() end
             return
         end
 
         local aimPos = head.Position + headOffset
-        bv.Velocity = (aimPos - bullet.Position).Unit * bulletSpeed
+        bv.Velocity = (aimPos - bullet.Position).Unit * bulletSpeed -- homing bullet
 
-        local sp = Camera:WorldToViewportPoint(LP.Character.Head.Position)
-        local tp = Camera:WorldToViewportPoint(head.Position)
-        line.From = Vector2.new(sp.X, sp.Y)
-        line.To = Vector2.new(tp.X, tp.Y)
-        line.Visible = true
-
-        if target:FindFirstChild("HumanoidRootPart") then
-            target.HumanoidRootPart.CFrame = CFrame.new(LP.Character.Head.Position + LP.Character.Head.CFrame.LookVector * 5 + Vector3.new(0,3,0))
+        -- kiểm tra trúng head
+        if (bullet.Position - aimPos).Magnitude < headHitboxSize/2 then
+            if humanoid.Health > 0 then
+                humanoid:TakeDamage(100) -- damage
+            end
+            bullet:Destroy()
+            activeBullets[bullet] = nil
+            if conn then conn:Disconnect() end
         end
     end)
 end
 
+-- Main loop tự động bắn
 RunService.RenderStepped:Connect(function()
     if not magicbullet then return end
     local targets = getTargets()
@@ -812,6 +811,7 @@ RunService.RenderStepped:Connect(function()
         local head = target:FindFirstChild("Head")
         local humanoid = target:FindFirstChild("Humanoid")
         if head and humanoid and humanoid.Health > 0 then
+            -- kiểm tra target đã có bullet chưa
             local alreadyFiring = false
             for b,tgt in pairs(activeBullets) do
                 if tgt == target then
@@ -820,7 +820,7 @@ RunService.RenderStepped:Connect(function()
                 end
             end
             if not alreadyFiring then
-                fireBullet(target)
+                fireBullet(target) -- tạo bullet mới homing head
             end
         end
     end

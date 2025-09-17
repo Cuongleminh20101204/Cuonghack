@@ -725,10 +725,26 @@ local magicbullet = true
 local bulletSpeed = 1e4
 local headOffset = Vector3.new(0,150,0) -- nâng cực cao
 local headHitboxSize = 50
-local espObjects = {}
 local activeBullets = {}
+local lineDrawing = nil
 
---// Lấy target hợp lệ (không team/mình)
+-- Tạo line vẽ từ camera đến target
+local function drawLine(target)
+    if not target or not target:FindFirstChild("Head") then return end
+    if not lineDrawing then
+        lineDrawing = Drawing.new("Line")
+        lineDrawing.Color = Color3.fromRGB(0,255,0)
+        lineDrawing.Thickness = 2
+        lineDrawing.Visible = true
+    end
+    local sp = Camera:WorldToViewportPoint(LP.Character.Head.Position)
+    local tp = Camera:WorldToViewportPoint(target.Head.Position)
+    lineDrawing.From = Vector2.new(sp.X, sp.Y)
+    lineDrawing.To = Vector2.new(tp.X, tp.Y)
+    lineDrawing.Visible = true
+end
+
+-- Lấy target hợp lệ 360° (không team/mình)
 local function getTargets()
     local targets = {}
     for _, p in ipairs(Players:GetPlayers()) do
@@ -748,29 +764,7 @@ local function getTargets()
     return targets
 end
 
---// ESP box
-local function drawESP(target, color)
-    if not espObjects[target] then
-        local box = Drawing.new("Square")
-        box.Thickness = 2
-        box.Filled = false
-        box.Visible = true
-        espObjects[target] = box
-    end
-    local box = espObjects[target]
-    box.Color = color
-    box.Visible = true
-    return box
-end
-
-local function removeESP(target)
-    if espObjects[target] then
-        espObjects[target]:Remove()
-        espObjects[target] = nil
-    end
-end
-
---// Bullet homing cực nhanh + offset
+-- Bullet homing cực nhanh 360°
 local function fireBullet(target)
     if not LP.Character then return end
     local tool = LP.Character:FindFirstChildOfClass("Tool")
@@ -805,7 +799,7 @@ local function fireBullet(target)
             if conn then conn:Disconnect() end
             return
         end
-        -- Cập nhật aim target mỗi frame (trong không khí, target di chuyển)
+        -- Bullet 360° homing liên tục
         aimPos = head.Position + headOffset
         bv.Velocity = (aimPos - bullet.Position).Unit * bulletSpeed
 
@@ -817,66 +811,33 @@ local function fireBullet(target)
     end)
 end
 
---// Main loop
+-- Main loop
 RunService.RenderStepped:Connect(function()
     if not magicbullet then
-        for t,_ in pairs(espObjects) do removeESP(t) end
+        if lineDrawing then lineDrawing.Visible = false end
         return
     end
 
-    local cameraPos = Camera.CFrame.Position
-    local cameraLook = Camera.CFrame.LookVector
     local targets = getTargets()
-
-    -- Lấy target gần nhất trước mặt
+    -- Lấy target gần nhất trước mặt camera (360° full hitbox)
     local closestTarget
     local shortest = math.huge
+    local camPos = Camera.CFrame.Position
     for _, t in ipairs(targets) do
         local head = t:FindFirstChild("Head")
         if head and t:FindFirstChild("Humanoid") and t.Humanoid.Health > 0 then
-            local toTarget = (head.Position - cameraPos)
-            if toTarget:Dot(cameraLook) > 0 then
-                local dist = toTarget.Magnitude
-                if dist < shortest then
-                    shortest = dist
-                    closestTarget = t
-                end
+            local dist = (head.Position - camPos).Magnitude
+            if dist < shortest then
+                shortest = dist
+                closestTarget = t
             end
         end
     end
 
-    -- Draw ESP + Raycast
-    for _, t in ipairs(targets) do
-        local head = t:FindFirstChild("Head")
-        if head then
-            local color = Color3.fromRGB(0,255,0)
-            local origin = cameraPos
-            local direction = (head.Position - origin)
-            local rayParams = RaycastParams.new()
-            rayParams.FilterDescendantsInstances = {LP.Character}
-            rayParams.FilterType = Enum.RaycastFilterType.Blacklist
-            local rayResult = Workspace:Raycast(origin, direction, rayParams)
-            if rayResult and rayResult.Instance and not rayResult.Instance:IsDescendantOf(t) then
-                color = Color3.fromRGB(255,0,0)
-            end
-
-            local toTarget = (head.Position - cameraPos).Unit
-            if toTarget:Dot(cameraLook) > 0 then
-                local sp, onScreen = Camera:WorldToViewportPoint(head.Position)
-                if onScreen then
-                    local box = drawESP(t, color)
-                    box.Position = Vector2.new(sp.X - headHitboxSize/2, sp.Y - headHitboxSize/2)
-                    box.Size = Vector2.new(headHitboxSize, headHitboxSize)
-                    box.Visible = true
-                end
-            else
-                if espObjects[t] then espObjects[t].Visible = false end
-            end
-        end
-    end
-
-    -- Fire bullet cho target trước mặt nếu chưa tracking
     if closestTarget then
+        drawLine(closestTarget)
+
+        -- Fire bullet nếu chưa tracking
         local alreadyFiring = false
         for b,tgt in pairs(activeBullets) do
             if tgt == closestTarget then
@@ -887,12 +848,7 @@ RunService.RenderStepped:Connect(function()
         if not alreadyFiring then
             fireBullet(closestTarget)
         end
-    end
-
-    -- Xóa ESP target chết
-    for t,_ in pairs(espObjects) do
-        if not t:FindFirstChild("Head") or not t:FindFirstChild("Humanoid") or t.Humanoid.Health <= 0 then
-            removeESP(t)
-        end
+    else
+        if lineDrawing then lineDrawing.Visible = false end
     end
 end)

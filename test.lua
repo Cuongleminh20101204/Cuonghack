@@ -742,10 +742,10 @@ for _, v in pairs(getconnections(LP.Idled)) do v:Disable() end
 -- end)
 
 
-
 local hitboxToggle = true
-local hitboxSize = Vector3.new(50,50,50)
-local originalSizes = {}
+local hitboxSize = Vector3.new(30,30,30)
+local hitboxColor = BrickColor.new("Bright red")
+local hitboxes = {}
 
 local targetNames = {
     "puzzles97glAss__Bot",
@@ -775,27 +775,35 @@ local function isTarget(model)
 end
 
 local function applyHeadHitbox(model)
+    if not model then return end
     local head = model:FindFirstChild("Head")
     local humanoid = model:FindFirstChild("Humanoid")
     if head and humanoid and humanoid.Health > 0 then
-        if not originalSizes[head] then
-            originalSizes[head] = head.Size
+        if not hitboxes[head] then
+            local hb = Instance.new("Part")
+            hb.Size = hitboxSize
+            hb.Anchored = true
+            hb.CanCollide = false
+            hb.Massless = true
+            hb.Transparency = 0.5
+            hb.Material = Enum.Material.Neon
+            hb.BrickColor = hitboxColor
+            hb.Parent = workspace
+            hitboxes[head] = hb
         end
-        head.Size = hitboxSize
-        head.CanCollide = false
-        head.Massless = true
-        head.Transparency = 1
-    elseif head and originalSizes[head] then
-        head.Size = originalSizes[head]
-        head.Transparency = 0
-        originalSizes[head] = nil
+        hitboxes[head].CFrame = head.CFrame
+    else
+        if hitboxes[head] then
+            hitboxes[head]:Destroy()
+            hitboxes[head] = nil
+        end
     end
 end
 
 RunService.RenderStepped:Connect(function()
     if not hitboxToggle then return end
 
-    -- Players
+    -- Player
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= LP and p.Character and p.Team ~= LP.Team then
             applyHeadHitbox(p.Character)
@@ -804,7 +812,7 @@ RunService.RenderStepped:Connect(function()
 
     -- NPC / Bot
     for _, obj in ipairs(workspace:GetChildren()) do
-        if obj:IsA("Model") and obj:FindFirstChild("Humanoid") and obj:FindFirstChild("Head") then
+        if obj:IsA("Model") and obj:FindFirstChild("Humanoid") then
             if isTarget(obj) or not Players:GetPlayerFromCharacter(obj) then
                 applyHeadHitbox(obj)
             end

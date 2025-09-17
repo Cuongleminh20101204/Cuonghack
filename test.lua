@@ -741,84 +741,73 @@ for _, v in pairs(getconnections(LP.Idled)) do v:Disable() end
 --     end
 -- end)
 
-
-
-local Drawing = Drawing -- chắc bạn đã require trước
+local HITBOX_SIZE = Vector3.new(30,30,30)
 
 local hitboxToggle = true
-local headHitboxSize = Vector3.new(50,50,50)
-local originalSizes = {}
-local chamsObjects = {}
+local hitboxes = {}
 
-local function applyHeadHitbox(model)
+local function createHitbox(model)
+    if not model then return end
+    if hitboxes[model] then return hitboxes[model] end
+
     local head = model:FindFirstChild("Head")
+    if not head then return end
+
+    local box = Instance.new("Part")
+    box.Name = "HitboxBox"
+    box.Anchored = true
+    box.CanCollide = false
+    box.Massless = true
+    box.Size = HITBOX_SIZE
+    box.Transparency = 0.5
+    box.BrickColor = BrickColor.new("Bright red")
+    box.Material = Enum.Material.Neon
+    box.Parent = Workspace
+
+    hitboxes[model] = box
+    return box
+end
+
+local function updateHitbox(model)
+    if not model then return end
     local humanoid = model:FindFirstChild("Humanoid")
-    if head and humanoid and humanoid.Health > 0 then
-        if not originalSizes[head] then
-            originalSizes[head] = head.Size
+    local head = model:FindFirstChild("Head")
+    if not humanoid or humanoid.Health <= 0 or not head then
+        if hitboxes[model] then
+            hitboxes[model]:Destroy()
+            hitboxes[model] = nil
         end
-        head.Size = headHitboxSize
-        head.CanCollide = false
-        head.Massless = true
-        head.Transparency = 1 -- ẩn mesh
-
-        -- tạo chams
-        if not chamsObjects[head] then
-            local box = Drawing.new("Square")
-            box.Color = Color3.fromRGB(255,0,0)
-            box.Thickness = 2
-            box.Filled = false
-            box.Visible = true
-            chamsObjects[head] = box
-        end
-    elseif head and originalSizes[head] then
-        head.Size = originalSizes[head]
-        head.Transparency = 0
-        originalSizes[head] = nil
-
-        if chamsObjects[head] then
-            chamsObjects[head]:Remove()
-            chamsObjects[head] = nil
-        end
+        return
     end
+
+    local box = createHitbox(model)
+    box.CFrame = head.CFrame
+    head.Transparency = 1
 end
 
 RunService.RenderStepped:Connect(function()
     if not hitboxToggle then return end
 
-    local models = {}
+    -- Players
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= LP and p.Character and p.Team ~= LP.Team then
-            table.insert(models, p.Character)
+            updateHitbox(p.Character)
         end
     end
 
-    for _, npc in ipairs(workspace:GetChildren()) do
-        if npc:IsA("Model") and npc:FindFirstChild("Humanoid") and npc:FindFirstChild("Head") then
-            table.insert(models, npc)
-        end
-    end
-
-    for _, model in ipairs(models) do
-        applyHeadHitbox(model)
-    end
-
-    -- update chams
-    for head, box in pairs(chamsObjects) do
-        if head.Parent then
-            local pos, onScreen = Camera:WorldToViewportPoint(head.Position)
-            if onScreen then
-                local sizeFactor = 2000 / ((head.Position - Camera.CFrame.Position).Magnitude)
-                sizeFactor = math.clamp(sizeFactor, 30, 200)
-                box.Position = Vector2.new(pos.X - sizeFactor/2, pos.Y - sizeFactor/2)
-                box.Size = Vector2.new(sizeFactor, sizeFactor)
-                box.Visible = true
-            else
-                box.Visible = false
+    -- NPC / Mob
+    for _, obj in ipairs(Workspace:GetChildren()) do
+        if obj:IsA("Model") and obj:FindFirstChild("Humanoid") and obj:FindFirstChild("Head") then
+            if not Players:GetPlayerFromCharacter(obj) then
+                updateHitbox(obj)
             end
-        else
-            box:Remove()
-            chamsObjects[head] = nil
         end
+    end
+end)
+
+Players.PlayerRemoving:Connect(function(p)
+    if p.Character and hitboxes[p.Character] then
+        hitboxes[p.Character]:Destroy()
+        hitboxes[p.Character] = nil
     end
 end)

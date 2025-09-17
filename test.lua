@@ -726,15 +726,12 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 local LP = Players.LocalPlayer
-local Camera = Workspace.CurrentCamera
-local Drawing = Drawing
 
 local magicbullet = true
 local bulletSpeed = 1e4
 local headOffset = Vector3.new(0,200,0)
 local bulletSize = 70
 local activeBullets = {}
-local espBoxes = {}
 
 local function getTargets()
     local targets = {}
@@ -804,22 +801,6 @@ local function fireBullet(target)
     end)
 end
 
-local function createESP(target)
-    if espBoxes[target] then return end
-    local box = Drawing.new("Square")
-    box.Color = Color3.fromRGB(255,0,0)
-    box.Thickness = 2
-    box.Filled = false
-    espBoxes[target] = box
-end
-
-local function removeESP(target)
-    if espBoxes[target] then
-        espBoxes[target]:Remove()
-        espBoxes[target] = nil
-    end
-end
-
 RunService.RenderStepped:Connect(function()
     if not magicbullet then return end
     local targets = getTargets()
@@ -837,21 +818,6 @@ RunService.RenderStepped:Connect(function()
             if not alreadyFiring then
                 fireBullet(target)
             end
-
-            createESP(target)
-            local box = espBoxes[target]
-            if box then
-                local screenPos, onScreen = Camera:WorldToViewportPoint(head.Position)
-                if onScreen then
-                    box.Position = Vector2.new(screenPos.X - 25, screenPos.Y - 25)
-                    box.Size = Vector2.new(50,50)
-                    box.Visible = true
-                else
-                    box.Visible = false
-                end
-            end
-        else
-            removeESP(target)
         end
     end
 end)

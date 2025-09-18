@@ -699,7 +699,7 @@ local function updateHead(model)
     local head = model:FindFirstChild("Head")
     local humanoid = model:FindFirstChild("Humanoid")
     if head and humanoid and humanoid.Health > 0 then
-        head.Size = Vector3.new(10,10,10)
+        head.Size = Vector3.new(10, 10, 10)
         head.CanCollide = false
         head.Massless = true
     end
@@ -707,13 +707,11 @@ end
 
 RunService.RenderStepped:Connect(function()
     if not hitboxToggle then return end
-    
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= LP and p.Character and p.Team ~= LP.Team then
             updateHead(p.Character)
         end
     end
-
     for _, npc in ipairs(workspace:GetChildren()) do
         if npc:IsA("Model") and npc:FindFirstChild("Humanoid") and npc:FindFirstChild("Head") then
             updateHead(npc)
@@ -725,99 +723,42 @@ end)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
+
 local LP = Players.LocalPlayer
+local silentAim = true
 
-local magicbullet = true
-local bulletSpeed = 1e4
-local headOffset = Vector3.new(0,200,0)
-local bulletSize = 70
-local activeBullets = {}
+local function getClosestEnemyHead()
+    local closest, dist = nil, math.huge
+    local camPos = Workspace.CurrentCamera.CFrame.Position
 
-local function getTargets()
-    local targets = {}
     for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= LP and p.Character and p.Character:FindFirstChild("Humanoid") and p.Character:FindFirstChild("Head") then
-            if p.Team ~= LP.Team then
-                table.insert(targets, p.Character)
-            end
-        end
-    end
-    for _, obj in ipairs(Workspace:GetChildren()) do
-        if obj:IsA("Model") and obj:FindFirstChild("Humanoid") and obj:FindFirstChild("Head") then
-            if not Players:GetPlayerFromCharacter(obj) then
-                table.insert(targets, obj)
-            end
-        end
-    end
-    return targets
-end
-
-local function fireBullet(target)
-    if not LP.Character then return end
-    local tool = LP.Character:FindFirstChildOfClass("Tool")
-    if not tool or not tool:FindFirstChild("Handle") then return end
-
-    local head = target:FindFirstChild("Head")
-    local humanoid = target:FindFirstChild("Humanoid")
-    if not head or not humanoid then return end
-
-    local bullet = Instance.new("Part")
-    bullet.Size = Vector3.new(bulletSize, bulletSize, bulletSize)
-    bullet.Shape = Enum.PartType.Ball
-    bullet.Material = Enum.Material.Neon
-    bullet.BrickColor = BrickColor.new("Bright yellow")
-    bullet.CFrame = tool.Handle.CFrame
-    bullet.CanCollide = false
-    bullet.Anchored = false
-    bullet.Parent = Workspace
-
-    local bv = Instance.new("BodyVelocity")
-    bv.MaxForce = Vector3.new(1e6,1e6,1e6)
-    bv.Velocity = Vector3.zero
-    bv.Parent = bullet
-
-    activeBullets[bullet] = target
-
-    local conn
-    conn = RunService.RenderStepped:Connect(function()
-        if not bullet or not bullet.Parent or not target or not head or head.Parent == nil or humanoid.Health <= 0 then
-            if bullet then bullet:Destroy() end
-            activeBullets[bullet] = nil
-            if conn then conn:Disconnect() end
-            return
-        end
-
-        local aimPos = head.Position + headOffset
-        bv.Velocity = (aimPos - bullet.Position).Unit * bulletSpeed
-
-        if (bullet.Position - aimPos).Magnitude < bulletSize/2 then
-            if humanoid.Health > 0 then
-                humanoid:TakeDamage(100)
-            end
-            bullet:Destroy()
-            activeBullets[bullet] = nil
-            if conn then conn:Disconnect() end
-        end
-    end)
-end
-
-RunService.RenderStepped:Connect(function()
-    if not magicbullet then return end
-    local targets = getTargets()
-    for _, target in ipairs(targets) do
-        local head = target:FindFirstChild("Head")
-        local humanoid = target:FindFirstChild("Humanoid")
-        if head and humanoid and humanoid.Health > 0 then
-            local alreadyFiring = false
-            for b,tgt in pairs(activeBullets) do
-                if tgt == target then
-                    alreadyFiring = true
-                    break
+        if p ~= LP and p.Team ~= LP.Team and p.Character then
+            local head = p.Character:FindFirstChild("Head")
+            local humanoid = p.Character:FindFirstChild("Humanoid")
+            if head and humanoid and humanoid.Health > 0 then
+                local screenPos, onScreen = Workspace.CurrentCamera:WorldToViewportPoint(head.Position)
+                if onScreen then
+                    local mag = (Vector2.new(screenPos.X, screenPos.Y) - Vector2.new(workspace.CurrentCamera.ViewportSize.X/2, workspace.CurrentCamera.ViewportSize.Y/2)).Magnitude
+                    if mag < dist then
+                        dist = mag
+                        closest = head
+                    end
                 end
             end
-            if not alreadyFiring then
-                fireBullet(target)
-            end
         end
     end
-end)
+    return closest
+end
+
+-- Hook RaycastParams hoặc hướng súng
+local oldRaycast = Workspace.Raycast
+Workspace.Raycast = function(self, origin, direction, params)
+    if silentAim then
+        local target = getClosestEnemyHead()
+        if target then
+            local newDir = (target.Position - origin).Unit * direction.Magnitude
+            return oldRaycast(self, origin, newDir, params)
+        end
+    end
+    return oldRaycast(self, origin, direction, params)
+end

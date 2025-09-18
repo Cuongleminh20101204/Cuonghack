@@ -725,16 +725,24 @@ end)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
-local LP = Players.LocalPlayer
 local Cam = Workspace.CurrentCamera
+local LP = Players.LocalPlayer
 
 local CurrentTarget = nil
-local BulletTrails = {} -- lưu line của từng viên đạn
+local BulletTrails = {}
 
--- hàm tìm head gần nhất
+-- vẽ line từ tâm → target
+local aimLine = Drawing.new("Line")
+aimLine.Color = Color3.fromRGB(0, 255, 0)
+aimLine.Thickness = 2
+aimLine.Transparency = 1
+aimLine.Visible = false
+
+-- tìm head gần nhất màn hình
 local function getClosestHead()
     local closest, dist = nil, math.huge
     local center = Vector2.new(Cam.ViewportSize.X/2, Cam.ViewportSize.Y/2)
+
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= LP and p.Team ~= LP.Team and p.Character then
             local head = p.Character:FindFirstChild("Head")
@@ -754,17 +762,17 @@ local function getClosestHead()
     return closest
 end
 
--- tracking + vẽ đường đạn
+-- track bullet tới target + vẽ tracer
 local function trackBullet(obj, target)
     local lastPos = obj.Position
     local conn
     conn = RunService.RenderStepped:Connect(function()
         if obj and obj.Parent and target and target.Parent then
-            -- chỉnh hướng đạn
+            -- hướng đạn
             obj.CFrame = CFrame.new(obj.Position, target.Position)
             obj.Velocity = (target.Position - obj.Position).Unit * 3000
 
-            -- vẽ quỹ đạo (line nối từ lastPos → pos hiện tại)
+            -- vẽ quỹ đạo
             local pos, vis = Cam:WorldToViewportPoint(obj.Position)
             local lastScreen, vis2 = Cam:WorldToViewportPoint(lastPos)
             if vis and vis2 then
@@ -784,7 +792,7 @@ local function trackBullet(obj, target)
     end)
 end
 
--- hook Shoot
+-- hook shoot event
 local mt = getrawmetatable(game)
 setreadonly(mt, false)
 local old = mt.__namecall
@@ -793,10 +801,11 @@ mt.__namecall = newcclosure(function(self, ...)
     local args = {...}
     local method = getnamecallmethod()
 
-    if tostring(self):lower():find("shoot") and method == "FireServer" then
+    if method == "FireServer" and tostring(self):lower():find("shoot") then
         local target = getClosestHead()
         if target then
             CurrentTarget = target
+            -- chờ đạn spawn rồi track
             local bulletConn
             bulletConn = Workspace.ChildAdded:Connect(function(obj)
                 if obj:IsA("BasePart") and obj.Name:lower():find("bullet") then
@@ -810,11 +819,26 @@ mt.__namecall = newcclosure(function(self, ...)
     return old(self, ...)
 end)
 
--- clear trail sau 0.3s
+-- update aim line + clear trail
 RunService.RenderStepped:Connect(function()
-    for i, t in ipairs(BulletTrails) do
-        if tick() - t.Tick > 0.3 then
-            t.Line:Remove()
+    if CurrentTarget and CurrentTarget.Parent then
+        local pos, vis = Cam:WorldToViewportPoint(CurrentTarget.Position)
+        if vis then
+            local center = Vector2.new(Cam.ViewportSize.X/2, Cam.ViewportSize.Y/2)
+            aimLine.From = center
+            aimLine.To = Vector2.new(pos.X, pos.Y)
+            aimLine.Visible = true
+        else
+            aimLine.Visible = false
+        end
+    else
+        aimLine.Visible = false
+    end
+
+    -- xóa trail sau 0.4s
+    for i = #BulletTrails, 1, -1 do
+        if tick() - BulletTrails[i].Tick > 0.4 then
+            BulletTrails[i].Line:Remove()
             table.remove(BulletTrails, i)
         end
     end

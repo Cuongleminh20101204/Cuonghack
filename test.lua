@@ -721,9 +721,6 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
-local Players = game:GetService("Players")
-local Workspace = game:GetService("Workspace")
-local LP = Players.LocalPlayer
 local SilentAim = true
 local logFile = "SilentAimLog.txt"
 
@@ -732,7 +729,9 @@ if not isfile(logFile) then
 end
 
 local function log(msg)
-    appendfile(logFile, os.date("[%H:%M:%S] ") .. msg .. "\n")
+    pcall(function()
+        appendfile(logFile, os.date("[%H:%M:%S] ") .. msg .. "\n")
+    end)
 end
 
 local function getClosestHead()
@@ -761,14 +760,27 @@ local oldNamecall = mt.__namecall
 mt.__namecall = newcclosure(function(self, ...)
     local args = {...}
     local method = getnamecallmethod()
-    if SilentAim and self == Workspace and method == "Raycast" then
-        local origin, direction, params = args[1], args[2], args[3]
+
+    if SilentAim and self == Workspace and (method == "Raycast" or method == "FindPartOnRay" or method == "FindPartOnRayWithIgnoreList") then
         local targetHead = getClosestHead()
         if targetHead then
-            local newDir = (targetHead.Position - origin).Unit * direction.Magnitude
-            log("Redirected → " .. targetHead.Parent.Name .. " | HeadPos: " .. tostring(targetHead.Position))
-            return oldNamecall(self, origin, newDir, params)
+            local origin, direction
+
+            if method == "Raycast" then
+                origin, direction = args[1], args[2]
+                local newDir = (targetHead.Position - origin).Unit * direction.Magnitude
+                log("Redirected Raycast → " .. targetHead.Parent.Name)
+                return oldNamecall(self, origin, newDir, args[3])
+            elseif method == "FindPartOnRay" or method == "FindPartOnRayWithIgnoreList" then
+                local ray = args[1]
+                local newDir = (targetHead.Position - ray.Origin).Unit * ray.Direction.Magnitude
+                local newRay = Ray.new(ray.Origin, newDir)
+                log("Redirected " .. method .. " → " .. targetHead.Parent.Name)
+                args[1] = newRay
+                return oldNamecall(self, unpack(args))
+            end
         end
     end
+
     return oldNamecall(self, ...)
 end)

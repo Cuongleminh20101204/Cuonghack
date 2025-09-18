@@ -731,12 +731,25 @@ local LP = Players.LocalPlayer
 local CurrentTarget = nil
 local BulletTrails = {}
 
--- vẽ line từ tâm → target
-local aimLine = Drawing.new("Line")
-aimLine.Color = Color3.fromRGB(0, 255, 0)
-aimLine.Thickness = 2
-aimLine.Transparency = 1
-aimLine.Visible = false
+-- Box ESP quanh target
+local function makeBox()
+    local box = {}
+    box.Outline = Drawing.new("Square")
+    box.Outline.Color = Color3.fromRGB(0, 0, 0)
+    box.Outline.Thickness = 3
+    box.Outline.Filled = false
+    box.Outline.Visible = false
+
+    box.Main = Drawing.new("Square")
+    box.Main.Color = Color3.fromRGB(0, 150, 255) -- xanh dương
+    box.Main.Thickness = 1.5
+    box.Main.Filled = false
+    box.Main.Visible = false
+
+    return box
+end
+
+local TargetBox = makeBox()
 
 -- tìm head gần nhất màn hình
 local function getClosestHead()
@@ -772,7 +785,7 @@ local function trackBullet(obj, target)
             obj.CFrame = CFrame.new(obj.Position, target.Position)
             obj.Velocity = (target.Position - obj.Position).Unit * 3000
 
-            -- vẽ quỹ đạo
+            -- vẽ tracer
             local pos, vis = Cam:WorldToViewportPoint(obj.Position)
             local lastScreen, vis2 = Cam:WorldToViewportPoint(lastPos)
             if vis and vis2 then
@@ -819,23 +832,40 @@ mt.__namecall = newcclosure(function(self, ...)
     return old(self, ...)
 end)
 
--- update aim line + clear trail
+-- update box + clear trail
 RunService.RenderStepped:Connect(function()
     if CurrentTarget and CurrentTarget.Parent then
-        local pos, vis = Cam:WorldToViewportPoint(CurrentTarget.Position)
-        if vis then
-            local center = Vector2.new(Cam.ViewportSize.X/2, Cam.ViewportSize.Y/2)
-            aimLine.From = center
-            aimLine.To = Vector2.new(pos.X, pos.Y)
-            aimLine.Visible = true
-        else
-            aimLine.Visible = false
+        local hum = CurrentTarget.Parent:FindFirstChild("HumanoidRootPart")
+        if hum then
+            local hrp = hum.Position
+            local head = CurrentTarget.Position
+
+            local top, vis1 = Cam:WorldToViewportPoint(head + Vector3.new(0, 0.5, 0))
+            local bottom, vis2 = Cam:WorldToViewportPoint(hrp - Vector3.new(0, 2.5, 0))
+
+            if vis1 and vis2 then
+                local boxSize = math.abs(top.Y - bottom.Y)
+                local boxWidth = boxSize / 2
+
+                TargetBox.Main.Size = Vector2.new(boxWidth, boxSize)
+                TargetBox.Main.Position = Vector2.new(top.X - boxWidth/2, top.Y)
+
+                TargetBox.Outline.Size = TargetBox.Main.Size
+                TargetBox.Outline.Position = TargetBox.Main.Position
+
+                TargetBox.Main.Visible = true
+                TargetBox.Outline.Visible = true
+            else
+                TargetBox.Main.Visible = false
+                TargetBox.Outline.Visible = false
+            end
         end
     else
-        aimLine.Visible = false
+        TargetBox.Main.Visible = false
+        TargetBox.Outline.Visible = false
     end
 
-    -- xóa trail sau 0.4s
+    -- clear trail sau 0.4s
     for i = #BulletTrails, 1, -1 do
         if tick() - BulletTrails[i].Tick > 0.4 then
             BulletTrails[i].Line:Remove()

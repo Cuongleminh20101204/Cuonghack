@@ -722,27 +722,25 @@ RunService.RenderStepped:Connect(function()
 end)
 
 
-
 local Players = game:GetService("Players")
-local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
 local LP = Players.LocalPlayer
+local Cam = Workspace.CurrentCamera
 
 local SilentAim = true
 local CurrentTarget = nil
 
--- tìm target gần nhất
+-- tìm player gần nhất camera
 local function getClosestHead()
     local closest, dist = nil, math.huge
-    local cam = Workspace.CurrentCamera
-    if not cam then return end
-    local camPos = cam.CFrame.Position
+    local camPos = Cam.CFrame.Position
 
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= LP and p.Team ~= LP.Team and p.Character then
             local head = p.Character:FindFirstChild("Head")
-            local humanoid = p.Character:FindFirstChild("Humanoid")
-            if head and humanoid and humanoid.Health > 0 then
+            local hum = p.Character:FindFirstChild("Humanoid")
+            if head and hum and hum.Health > 0 then
                 local d = (head.Position - camPos).Magnitude
                 if d < dist then
                     dist = d
@@ -754,14 +752,15 @@ local function getClosestHead()
     return closest
 end
 
--- chỉ patch head hit
+-- sửa argument trước khi bắn
 local function patchShootArgs(args, head)
     for i = 1, #args do
         local a = args[i]
         if typeof(a) == "Instance" and a:IsA("BasePart") then
+            -- target part
             args[i] = head
         elseif typeof(a) == "Vector3" then
-            -- nếu vector này gần head => đổi thành Head.Position
+            -- thay hit position
             if (a - head.Position).Magnitude < 20 or i == 2 then
                 args[i] = head.Position
             end
@@ -781,7 +780,7 @@ mt.__namecall = newcclosure(function(self, ...)
 
     if SilentAim and method == "FireServer" then
         local name = tostring(self):lower()
-        if name:find("gun") or name:find("shoot") or name:find("bullet") then
+        if name:find("shoot") or name:find("fire") or name:find("gun") or name:find("bullet") then
             local head = getClosestHead()
             if head then
                 CurrentTarget = head
@@ -794,7 +793,7 @@ mt.__namecall = newcclosure(function(self, ...)
     return oldNamecall(self, ...)
 end)
 
--- vẽ line cố định xanh lá đến target silent
+-- vẽ line xanh lá từ tâm màn hình → target
 local drawLine = Drawing.new("Line")
 drawLine.Color = Color3.fromRGB(0, 255, 0)
 drawLine.Thickness = 2
@@ -802,12 +801,11 @@ drawLine.Transparency = 1
 
 RunService.RenderStepped:Connect(function()
     if CurrentTarget and CurrentTarget.Parent and CurrentTarget:IsDescendantOf(Workspace) then
-        local cam = Workspace.CurrentCamera
-        local headPos, onScreen = cam:WorldToViewportPoint(CurrentTarget.Position)
-        local center = Vector2.new(cam.ViewportSize.X/2, cam.ViewportSize.Y/2)
-        if onScreen then
+        local pos, vis = Cam:WorldToViewportPoint(CurrentTarget.Position)
+        if vis then
+            local center = Vector2.new(Cam.ViewportSize.X/2, Cam.ViewportSize.Y/2)
             drawLine.From = center
-            drawLine.To = Vector2.new(headPos.X, headPos.Y)
+            drawLine.To = Vector2.new(pos.X, pos.Y)
             drawLine.Visible = true
         else
             drawLine.Visible = false

@@ -731,16 +731,22 @@ local Cam = Workspace.CurrentCamera
 local SilentAim = true
 local CurrentTarget = nil
 
--- tìm player gần nhất camera
+-- Raycast check
+local function canSee(head)
+    local ray = Ray.new(Cam.CFrame.Position, (head.Position - Cam.CFrame.Position).Unit * 9999)
+    local part = Workspace:FindPartOnRay(ray, LP.Character, false, true)
+    return part == head or (part and part:IsDescendantOf(head.Parent))
+end
+
+-- Chọn head gần nhất + visible
 local function getClosestHead()
     local closest, dist = nil, math.huge
     local camPos = Cam.CFrame.Position
-
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= LP and p.Team ~= LP.Team and p.Character then
             local head = p.Character:FindFirstChild("Head")
             local hum = p.Character:FindFirstChild("Humanoid")
-            if head and hum and hum.Health > 0 then
+            if head and hum and hum.Health > 0 and canSee(head) then
                 local d = (head.Position - camPos).Magnitude
                 if d < dist then
                     dist = d
@@ -752,16 +758,15 @@ local function getClosestHead()
     return closest
 end
 
--- sửa argument trước khi bắn
+-- Patch args: chỉ sửa target part + hit pos
 local function patchShootArgs(args, head)
     for i = 1, #args do
         local a = args[i]
         if typeof(a) == "Instance" and a:IsA("BasePart") then
-            -- target part
             args[i] = head
         elseif typeof(a) == "Vector3" then
-            -- thay hit position
-            if (a - head.Position).Magnitude < 20 or i == 2 then
+            -- chỉ thay vector nào gần với head hoặc index thường dùng làm hitpos
+            if (a - head.Position).Magnitude < 30 or i == 2 then
                 args[i] = head.Position
             end
         end
@@ -769,7 +774,7 @@ local function patchShootArgs(args, head)
     return args
 end
 
--- hook FireServer
+-- Hook FireServer
 local mt = getrawmetatable(game)
 setreadonly(mt, false)
 local oldNamecall = mt.__namecall
@@ -789,11 +794,10 @@ mt.__namecall = newcclosure(function(self, ...)
             end
         end
     end
-
     return oldNamecall(self, ...)
 end)
 
--- vẽ line xanh lá từ tâm màn hình → target
+-- Vẽ line từ tâm -> target
 local drawLine = Drawing.new("Line")
 drawLine.Color = Color3.fromRGB(0, 255, 0)
 drawLine.Thickness = 2

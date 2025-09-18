@@ -693,7 +693,7 @@ end)
 for _, v in pairs(getconnections(LP.Idled)) do v:Disable() end
 
 
-local hitboxToggle = true
+local hitboxToggle = false
 
 local function updateHead(model)
     local head = model:FindFirstChild("Head")
@@ -723,18 +723,13 @@ end)
 
 
 
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+local LP = Players.LocalPlayer
+
 local SilentAim = true
-local logFile = "SilentAim_SafeLog.txt"
-
-if not isfile(logFile) then
-    writefile(logFile, "=== Silent Aim (Safe) Log Start ===\n")
-end
-
-local function log(msg)
-    pcall(function()
-        appendfile(logFile, os.date("[%H:%M:%S] ") .. msg .. "\n")
-    end)
-end
+local CurrentTarget = nil
 
 local function getClosestHead()
     local closest, dist = nil, math.huge
@@ -758,9 +753,8 @@ local function getClosestHead()
     return closest
 end
 
--- chỉ patch loại đơn giản, bỏ table để tránh đơ
-local function patchArg(arg, head)
-    if not head then return arg end
+-- chỉ patch Vector3/CFrame liên quan đến vị trí đạn
+local function patchShootArg(arg, head)
     if typeof(arg) == "Vector3" then
         return head.Position
     elseif typeof(arg) == "CFrame" then
@@ -773,6 +767,7 @@ local function patchArg(arg, head)
     return arg
 end
 
+-- hook FireServer
 local mt = getrawmetatable(game)
 setreadonly(mt, false)
 local oldNamecall = mt.__namecall
@@ -781,19 +776,38 @@ mt.__namecall = newcclosure(function(self, ...)
     local args = {...}
     local method = getnamecallmethod()
 
-    if SilentAim and (method == "FireServer" or method == "InvokeServer") then
-        -- lọc remote liên quan súng (ví dụ "Gun", "Shoot", "Bullet")
-        if tostring(self):lower():find("gun") or tostring(self):lower():find("shoot") or tostring(self):lower():find("bullet") then
+    if SilentAim and method == "FireServer" then
+        local name = tostring(self):lower()
+        if name:find("gun") or name:find("shoot") or name:find("bullet") then
             local head = getClosestHead()
             if head then
-                for i=1, #args do
-                    args[i] = patchArg(args[i], head)
+                CurrentTarget = head
+                for i = 1, #args do
+                    args[i] = patchShootArg(args[i], head)
                 end
-                log(("SilentAim → %s @ %s via %s"):format(head.Parent.Name, tostring(head.Position), tostring(self)))
                 return oldNamecall(self, unpack(args))
             end
         end
     end
 
     return oldNamecall(self, ...)
+end)
+
+-- vẽ line đến target silent
+RunService.RenderStepped:Connect(function()
+    if CurrentTarget and CurrentTarget.Parent and CurrentTarget:IsDescendantOf(Workspace) then
+        local cam = Workspace.CurrentCamera
+        local headPos, onScreen = cam:WorldToViewportPoint(CurrentTarget.Position)
+        local center = Vector2.new(cam.ViewportSize.X/2, cam.ViewportSize.Y/2)
+        if onScreen then
+            local draw = Drawing.new("Line")
+            draw.From = center
+            draw.To = Vector2.new(headPos.X, headPos.Y)
+            draw.Color = Color3.fromRGB(255, 0, 0)
+            draw.Thickness = 2
+            draw.Transparency = 1
+            draw.Visible = true
+            task.delay(0.02, function() draw:Remove() end)
+        end
+    end
 end)

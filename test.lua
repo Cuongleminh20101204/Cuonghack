@@ -731,6 +731,7 @@ local LP = Players.LocalPlayer
 local SilentAim = true
 local CurrentTarget = nil
 
+-- tìm target gần nhất
 local function getClosestHead()
     local closest, dist = nil, math.huge
     local cam = Workspace.CurrentCamera
@@ -753,18 +754,20 @@ local function getClosestHead()
     return closest
 end
 
--- chỉ patch Vector3/CFrame liên quan đến vị trí đạn
-local function patchShootArg(arg, head)
-    if typeof(arg) == "Vector3" then
-        return head.Position
-    elseif typeof(arg) == "CFrame" then
-        return CFrame.new(head.Position)
-    elseif typeof(arg) == "Ray" then
-        return Ray.new(arg.Origin, (head.Position - arg.Origin))
-    elseif typeof(arg) == "Instance" and arg:IsA("BasePart") then
-        return head
+-- chỉ patch head hit
+local function patchShootArgs(args, head)
+    for i = 1, #args do
+        local a = args[i]
+        if typeof(a) == "Instance" and a:IsA("BasePart") then
+            args[i] = head
+        elseif typeof(a) == "Vector3" then
+            -- nếu vector này gần head => đổi thành Head.Position
+            if (a - head.Position).Magnitude < 20 or i == 2 then
+                args[i] = head.Position
+            end
+        end
     end
-    return arg
+    return args
 end
 
 -- hook FireServer
@@ -782,9 +785,7 @@ mt.__namecall = newcclosure(function(self, ...)
             local head = getClosestHead()
             if head then
                 CurrentTarget = head
-                for i = 1, #args do
-                    args[i] = patchShootArg(args[i], head)
-                end
+                args = patchShootArgs(args, head)
                 return oldNamecall(self, unpack(args))
             end
         end
@@ -793,21 +794,25 @@ mt.__namecall = newcclosure(function(self, ...)
     return oldNamecall(self, ...)
 end)
 
--- vẽ line đến target silent
+-- vẽ line cố định xanh lá đến target silent
+local drawLine = Drawing.new("Line")
+drawLine.Color = Color3.fromRGB(0, 255, 0)
+drawLine.Thickness = 2
+drawLine.Transparency = 1
+
 RunService.RenderStepped:Connect(function()
     if CurrentTarget and CurrentTarget.Parent and CurrentTarget:IsDescendantOf(Workspace) then
         local cam = Workspace.CurrentCamera
         local headPos, onScreen = cam:WorldToViewportPoint(CurrentTarget.Position)
         local center = Vector2.new(cam.ViewportSize.X/2, cam.ViewportSize.Y/2)
         if onScreen then
-            local draw = Drawing.new("Line")
-            draw.From = center
-            draw.To = Vector2.new(headPos.X, headPos.Y)
-            draw.Color = Color3.fromRGB(255, 0, 0)
-            draw.Thickness = 2
-            draw.Transparency = 1
-            draw.Visible = true
-            task.delay(0.02, function() draw:Remove() end)
+            drawLine.From = center
+            drawLine.To = Vector2.new(headPos.X, headPos.Y)
+            drawLine.Visible = true
+        else
+            drawLine.Visible = false
         end
+    else
+        drawLine.Visible = false
     end
 end)

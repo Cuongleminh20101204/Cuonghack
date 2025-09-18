@@ -722,22 +722,26 @@ RunService.RenderStepped:Connect(function()
 end)
 
 
+
 local SilentAim = true
-local logFile = "SilentAim_NoRay_Log.txt"
+local logFile = "SilentAim_SafeLog.txt"
 
 if not isfile(logFile) then
-    writefile(logFile, "=== Silent Aim (no ray) Log Start ===\n")
+    writefile(logFile, "=== Silent Aim (Safe) Log Start ===\n")
 end
 
 local function log(msg)
     pcall(function()
-        appendfile(logFile, os.date("[%Y-%m-%d %H:%M:%S] ") .. tostring(msg) .. "\n")
+        appendfile(logFile, os.date("[%H:%M:%S] ") .. msg .. "\n")
     end)
 end
 
 local function getClosestHead()
     local closest, dist = nil, math.huge
-    local camPos = Workspace.CurrentCamera and Workspace.CurrentCamera.CFrame.Position or Vector3.new(0,0,0)
+    local cam = Workspace.CurrentCamera
+    if not cam then return end
+    local camPos = cam.CFrame.Position
+
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= LP and p.Team ~= LP.Team and p.Character then
             local head = p.Character:FindFirstChild("Head")
@@ -754,75 +758,39 @@ local function getClosestHead()
     return closest
 end
 
-local function replaceVectorOrCFrame(v, head)
-    if not head then return v end
-    if typeof(v) == "Vector3" then
+-- chỉ patch loại đơn giản, bỏ table để tránh đơ
+local function patchArg(arg, head)
+    if not head then return arg end
+    if typeof(arg) == "Vector3" then
         return head.Position
-    elseif typeof(v) == "CFrame" then
+    elseif typeof(arg) == "CFrame" then
         return CFrame.new(head.Position)
-    elseif typeof(v) == "Instance" and v:IsA("BasePart") then
-        local c = v.CFrame
-        c = CFrame.new(head.Position)
-        return c
-    elseif typeof(v) == "Ray" then
-        local newDir = (head.Position - v.Origin)
-        return Ray.new(v.Origin, newDir)
+    elseif typeof(arg) == "Ray" then
+        return Ray.new(arg.Origin, (head.Position - arg.Origin))
+    elseif typeof(arg) == "Instance" and arg:IsA("BasePart") then
+        return head
     end
-    return v
+    return arg
 end
 
-local function deepReplace(tbl, head)
-    if typeof(tbl) ~= "table" then
-        return replaceVectorOrCFrame(tbl, head)
-    end
-    for k, v in pairs(tbl) do
-        if typeof(v) == "table" then
-            deepReplace(v, head)
-        else
-            local replaced = replaceVectorOrCFrame(v, head)
-            if replaced ~= v then
-                tbl[k] = replaced
-            end
-        end
-    end
-    return tbl
-end
-
-local ok, mt = pcall(function() return getrawmetatable(game) end)
-if not ok or not mt then
-    return
-end
-
+local mt = getrawmetatable(game)
 setreadonly(mt, false)
 local oldNamecall = mt.__namecall
+
 mt.__namecall = newcclosure(function(self, ...)
     local args = {...}
     local method = getnamecallmethod()
 
     if SilentAim and (method == "FireServer" or method == "InvokeServer") then
-        local success, head = pcall(getClosestHead)
-        if success and head then
-            local replacedAny = false
-            for i = 1, #args do
-                local a = args[i]
-                if typeof(a) == "Vector3" or typeof(a) == "CFrame" or typeof(a) == "Ray" or (typeof(a) == "Instance" and a:IsA("BasePart")) then
-                    args[i] = replaceVectorOrCFrame(a, head)
-                    replacedAny = true
-                elseif typeof(a) == "table" then
-                    deepReplace(a, head)
-                    replacedAny = true
+        -- lọc remote liên quan súng (ví dụ "Gun", "Shoot", "Bullet")
+        if tostring(self):lower():find("gun") or tostring(self):lower():find("shoot") or tostring(self):lower():find("bullet") then
+            local head = getClosestHead()
+            if head then
+                for i=1, #args do
+                    args[i] = patchArg(args[i], head)
                 end
-            end
-            if replacedAny then
-                local ok2, res = pcall(function()
-                    log(("Redirected %s on %s -> %s (remote: %s)"):format(method, tostring(self), head.Parent.Name, tostring(self.Name)))
-                    return oldNamecall(self, unpack(args))
-                end)
-                if ok2 then
-                    return res
-                else
-                    return oldNamecall(self, ...)
-                end
+                log(("SilentAim → %s @ %s via %s"):format(head.Parent.Name, tostring(head.Position), tostring(self)))
+                return oldNamecall(self, unpack(args))
             end
         end
     end

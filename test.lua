@@ -699,7 +699,7 @@ local function updateHead(model)
     local head = model:FindFirstChild("Head")
     local humanoid = model:FindFirstChild("Humanoid")
     if head and humanoid and humanoid.Health > 0 then
-        head.Size = Vector3.new(10, 10, 10)
+        head.Size = Vector3.new(10,10,10)
         head.CanCollide = false
         head.Massless = true
     end
@@ -707,11 +707,13 @@ end
 
 RunService.RenderStepped:Connect(function()
     if not hitboxToggle then return end
+    
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= LP and p.Character and p.Team ~= LP.Team then
             updateHead(p.Character)
         end
     end
+
     for _, npc in ipairs(workspace:GetChildren()) do
         if npc:IsA("Model") and npc:FindFirstChild("Humanoid") and npc:FindFirstChild("Head") then
             updateHead(npc)
@@ -719,15 +721,23 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
-
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
-
 local LP = Players.LocalPlayer
-local silentAim = true
 
-local function getClosestEnemyHead()
+local SilentAim = true
+local logFile = "SilentAimLog.txt"
+
+-- tạo file log nếu chưa có
+if not isfile(logFile) then
+    writefile(logFile, "=== Silent Aim Rage Log Start ===\n")
+end
+
+local function log(msg)
+    appendfile(logFile, os.date("[%H:%M:%S] ") .. msg .. "\n")
+end
+
+local function getClosestHead()
     local closest, dist = nil, math.huge
     local camPos = Workspace.CurrentCamera.CFrame.Position
 
@@ -736,13 +746,10 @@ local function getClosestEnemyHead()
             local head = p.Character:FindFirstChild("Head")
             local humanoid = p.Character:FindFirstChild("Humanoid")
             if head and humanoid and humanoid.Health > 0 then
-                local screenPos, onScreen = Workspace.CurrentCamera:WorldToViewportPoint(head.Position)
-                if onScreen then
-                    local mag = (Vector2.new(screenPos.X, screenPos.Y) - Vector2.new(workspace.CurrentCamera.ViewportSize.X/2, workspace.CurrentCamera.ViewportSize.Y/2)).Magnitude
-                    if mag < dist then
-                        dist = mag
-                        closest = head
-                    end
+                local mag = (head.Position - camPos).Magnitude
+                if mag < dist then
+                    dist = mag
+                    closest = head
                 end
             end
         end
@@ -750,14 +757,18 @@ local function getClosestEnemyHead()
     return closest
 end
 
--- Hook RaycastParams hoặc hướng súng
+-- hook raycast
 local oldRaycast = Workspace.Raycast
 Workspace.Raycast = function(self, origin, direction, params)
-    if silentAim then
-        local target = getClosestEnemyHead()
-        if target then
-            local newDir = (target.Position - origin).Unit * direction.Magnitude
+    log("Raycast called | Origin: " .. tostring(origin) .. " | Dir: " .. tostring(direction))
+    if SilentAim then
+        local targetHead = getClosestHead()
+        if targetHead then
+            local newDir = (targetHead.Position - origin).Unit * direction.Magnitude
+            log("Redirected to HEAD of " .. targetHead.Parent.Name .. " | HeadPos: " .. tostring(targetHead.Position))
             return oldRaycast(self, origin, newDir, params)
+        else
+            log("No valid target found, using original direction")
         end
     end
     return oldRaycast(self, origin, direction, params)

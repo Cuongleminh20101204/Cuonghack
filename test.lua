@@ -724,11 +724,9 @@ end)
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local LP = Players.LocalPlayer
-
 local SilentAim = true
 local logFile = "SilentAimLog.txt"
 
--- tạo file log nếu chưa có
 if not isfile(logFile) then
     writefile(logFile, "=== Silent Aim Rage Log Start ===\n")
 end
@@ -740,7 +738,6 @@ end
 local function getClosestHead()
     local closest, dist = nil, math.huge
     local camPos = Workspace.CurrentCamera.CFrame.Position
-
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= LP and p.Team ~= LP.Team and p.Character then
             local head = p.Character:FindFirstChild("Head")
@@ -757,19 +754,21 @@ local function getClosestHead()
     return closest
 end
 
--- hook raycast
-local oldRaycast = Workspace.Raycast
-Workspace.Raycast = function(self, origin, direction, params)
-    log("Raycast called | Origin: " .. tostring(origin) .. " | Dir: " .. tostring(direction))
-    if SilentAim then
+local mt = getrawmetatable(game)
+setreadonly(mt, false)
+local oldNamecall = mt.__namecall
+
+mt.__namecall = newcclosure(function(self, ...)
+    local args = {...}
+    local method = getnamecallmethod()
+    if SilentAim and self == Workspace and method == "Raycast" then
+        local origin, direction, params = args[1], args[2], args[3]
         local targetHead = getClosestHead()
         if targetHead then
             local newDir = (targetHead.Position - origin).Unit * direction.Magnitude
-            log("Redirected to HEAD of " .. targetHead.Parent.Name .. " | HeadPos: " .. tostring(targetHead.Position))
-            return oldRaycast(self, origin, newDir, params)
-        else
-            log("No valid target found, using original direction")
+            log("Redirected → " .. targetHead.Parent.Name .. " | HeadPos: " .. tostring(targetHead.Position))
+            return oldNamecall(self, origin, newDir, params)
         end
     end
-    return oldRaycast(self, origin, direction, params)
-end
+    return oldNamecall(self, ...)
+end)

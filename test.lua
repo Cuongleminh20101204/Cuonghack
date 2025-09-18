@@ -723,22 +723,21 @@ end)
 
 
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
-local LP = Players.LocalPlayer
+local RunService = game:GetService("RunService")
 local Cam = Workspace.CurrentCamera
-
+local LP = Players.LocalPlayer
 local CurrentTarget = nil
 local BulletTrails = {}
+local LOG_FILE = "bullet_log.txt"
 
-local RunText = Drawing.new("Text")
-RunText.Text = "RUN"
-RunText.Color = Color3.fromRGB(0,255,0)
-RunText.Size = 30
-RunText.Center = true
-RunText.Outline = true
-RunText.Visible = false
-RunText.Position = Vector2.new(Cam.ViewportSize.X/2,50)
+local function writeLog(msg)
+    local f = io.open(LOG_FILE,"a")
+    if f then
+        f:write(msg.."\n")
+        f:close()
+    end
+end
 
 local function getClosestHead()
     local closest, dist = nil, math.huge
@@ -747,13 +746,13 @@ local function getClosestHead()
         if p ~= LP and p.Team ~= LP.Team and p.Character then
             local head = p.Character:FindFirstChild("Head")
             local hum = p.Character:FindFirstChild("Humanoid")
-            if head and hum and hum.Health > 0 then
+            if head and hum and hum.Health>0 then
                 local pos, vis = Cam:WorldToViewportPoint(head.Position)
                 if vis then
-                    local d = (Vector2.new(pos.X,pos.Y) - center).Magnitude
-                    if d < dist then
-                        dist = d
-                        closest = head
+                    local d = (Vector2.new(pos.X,pos.Y)-center).Magnitude
+                    if d<dist then
+                        dist=d
+                        closest=head
                     end
                 end
             end
@@ -765,56 +764,36 @@ end
 local function trackBullet(obj,target)
     local lastPos = obj.Position
     local conn
-    RunText.Visible = true
     conn = RunService.RenderStepped:Connect(function()
         if obj and obj.Parent and target and target.Parent then
-            local dir = (target.Position - obj.Position)
             obj.CFrame = CFrame.new(obj.Position,target.Position)
-            obj.Velocity = dir.Unit * 300
-
-            local pos, vis1 = Cam:WorldToViewportPoint(obj.Position)
+            obj.Velocity = (target.Position-obj.Position).Unit*3000
+            local pos, vis = Cam:WorldToViewportPoint(obj.Position)
             local lastScreen, vis2 = Cam:WorldToViewportPoint(lastPos)
-            if vis1 and vis2 then
-                local line = Drawing.new("Line")
-                line.Color = Color3.fromRGB(255,255,0)
-                line.Thickness = 1.5
-                line.From = Vector2.new(lastScreen.X,lastScreen.Y)
-                line.To = Vector2.new(pos.X,pos.Y)
-                line.Visible = true
-                table.insert(BulletTrails,{Line=line,Tick=tick()})
+            if vis and vis2 then
+                table.insert(BulletTrails,{From=lastScreen,To=pos,Tick=tick()})
             end
-
-            local hitPoint = obj.Position - Vector3.new(0,obj.Size.Y/2,0)
-            local hitPos, vis3 = Cam:WorldToViewportPoint(hitPoint)
-            if vis3 then
-                local dot = Drawing.new("Circle")
-                dot.Position = Vector2.new(hitPos.X,hitPos.Y)
-                dot.Radius = 3
-                dot.Color = Color3.fromRGB(0,0,255)
-                dot.Filled = true
-                dot.Visible = true
-                table.insert(BulletTrails,{Line=dot,Tick=tick()})
-            end
-            lastPos = obj.Position
+            lastPos=obj.Position
         else
-            RunText.Visible = false
             if conn then conn:Disconnect() end
         end
     end)
 end
 
-local mt = getrawmetatable(game)
+local mt=getrawmetatable(game)
 setreadonly(mt,false)
-local oldNamecall = mt.__namecall
-mt.__namecall = newcclosure(function(self,...)
-    local args = {...}
-    local method = getnamecallmethod()
-    if method == "FireServer" and tostring(self):lower():find("shoot") then
-        local target = getClosestHead()
+local oldNamecall=mt.__namecall
+
+mt.__namecall=newcclosure(function(self,...)
+    local args={...}
+    local method=getnamecallmethod()
+    if method=="FireServer" and tostring(self):lower():find("shoot") then
+        local target=getClosestHead()
         if target then
-            CurrentTarget = target
+            CurrentTarget=target
+            writeLog("Target: "..target.Parent.Name.." Head: "..tostring(target.Position))
             local bulletConn
-            bulletConn = Workspace.ChildAdded:Connect(function(obj)
+            bulletConn=Workspace.ChildAdded:Connect(function(obj)
                 if obj:IsA("BasePart") and obj.Name:lower():find("bullet") then
                     trackBullet(obj,target)
                     bulletConn:Disconnect()
@@ -826,10 +805,19 @@ mt.__namecall = newcclosure(function(self,...)
 end)
 
 RunService.RenderStepped:Connect(function()
-    for i=#BulletTrails,1,-1 do
-        if tick() - BulletTrails[i].Tick > 0.4 then
-            BulletTrails[i].Line:Remove()
-            table.remove(BulletTrails,i)
+    if CurrentTarget and CurrentTarget.Parent then
+        for i=#BulletTrails,1,-1 do
+            if tick()-BulletTrails[i].Tick>0.4 then
+                table.remove(BulletTrails,i)
+            end
         end
+        local txt = Drawing.new("Text")
+        txt.Position = Vector2.new(Cam.ViewportSize.X/2,10)
+        txt.Center = true
+        txt.Color = Color3.fromRGB(0,255,0)
+        txt.Text="RUN"
+        txt.Size=20
+        txt.Visible=true
+        task.delay(0.03,function() txt.Visible=false end)
     end
 end)

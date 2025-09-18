@@ -728,29 +728,25 @@ local Workspace = game:GetService("Workspace")
 local LP = Players.LocalPlayer
 local Cam = Workspace.CurrentCamera
 
-local SilentAim = true
 local CurrentTarget = nil
+local BulletTrails = {} -- lưu line của từng viên đạn
 
--- Raycast check
-local function canSee(head)
-    local ray = Ray.new(Cam.CFrame.Position, (head.Position - Cam.CFrame.Position).Unit * 9999)
-    local part = Workspace:FindPartOnRay(ray, LP.Character, false, true)
-    return part == head or (part and part:IsDescendantOf(head.Parent))
-end
-
--- Chọn head gần nhất + visible
+-- hàm tìm head gần nhất
 local function getClosestHead()
     local closest, dist = nil, math.huge
-    local camPos = Cam.CFrame.Position
+    local center = Vector2.new(Cam.ViewportSize.X/2, Cam.ViewportSize.Y/2)
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= LP and p.Team ~= LP.Team and p.Character then
             local head = p.Character:FindFirstChild("Head")
             local hum = p.Character:FindFirstChild("Humanoid")
-            if head and hum and hum.Health > 0 and canSee(head) then
-                local d = (head.Position - camPos).Magnitude
-                if d < dist then
-                    dist = d
-                    closest = head
+            if head and hum and hum.Health > 0 then
+                local pos, vis = Cam:WorldToViewportPoint(head.Position)
+                if vis then
+                    local d = (Vector2.new(pos.X,pos.Y) - center).Magnitude
+                    if d < dist then
+                        dist = d
+                        closest = head
+                    end
                 end
             end
         end
@@ -758,63 +754,68 @@ local function getClosestHead()
     return closest
 end
 
--- Patch args: chỉ sửa target part + hit pos
-local function patchShootArgs(args, head)
-    for i = 1, #args do
-        local a = args[i]
-        if typeof(a) == "Instance" and a:IsA("BasePart") then
-            args[i] = head
-        elseif typeof(a) == "Vector3" then
-            -- chỉ thay vector nào gần với head hoặc index thường dùng làm hitpos
-            if (a - head.Position).Magnitude < 30 or i == 2 then
-                args[i] = head.Position
+-- tracking + vẽ đường đạn
+local function trackBullet(obj, target)
+    local lastPos = obj.Position
+    local conn
+    conn = RunService.RenderStepped:Connect(function()
+        if obj and obj.Parent and target and target.Parent then
+            -- chỉnh hướng đạn
+            obj.CFrame = CFrame.new(obj.Position, target.Position)
+            obj.Velocity = (target.Position - obj.Position).Unit * 3000
+
+            -- vẽ quỹ đạo (line nối từ lastPos → pos hiện tại)
+            local pos, vis = Cam:WorldToViewportPoint(obj.Position)
+            local lastScreen, vis2 = Cam:WorldToViewportPoint(lastPos)
+            if vis and vis2 then
+                local line = Drawing.new("Line")
+                line.Color = Color3.fromRGB(255, 255, 0)
+                line.Thickness = 1.5
+                line.Transparency = 1
+                line.From = Vector2.new(lastScreen.X, lastScreen.Y)
+                line.To = Vector2.new(pos.X, pos.Y)
+                line.Visible = true
+                table.insert(BulletTrails, {Line = line, Tick = tick()})
             end
+            lastPos = obj.Position
+        else
+            if conn then conn:Disconnect() end
         end
-    end
-    return args
+    end)
 end
 
--- Hook FireServer
+-- hook Shoot
 local mt = getrawmetatable(game)
 setreadonly(mt, false)
-local oldNamecall = mt.__namecall
+local old = mt.__namecall
 
 mt.__namecall = newcclosure(function(self, ...)
     local args = {...}
     local method = getnamecallmethod()
 
-    if SilentAim and method == "FireServer" then
-        local name = tostring(self):lower()
-        if name:find("shoot") or name:find("fire") or name:find("gun") or name:find("bullet") then
-            local head = getClosestHead()
-            if head then
-                CurrentTarget = head
-                args = patchShootArgs(args, head)
-                return oldNamecall(self, unpack(args))
-            end
+    if tostring(self):lower():find("shoot") and method == "FireServer" then
+        local target = getClosestHead()
+        if target then
+            CurrentTarget = target
+            local bulletConn
+            bulletConn = Workspace.ChildAdded:Connect(function(obj)
+                if obj:IsA("BasePart") and obj.Name:lower():find("bullet") then
+                    trackBullet(obj, target)
+                    bulletConn:Disconnect()
+                end
+            end)
         end
     end
-    return oldNamecall(self, ...)
+
+    return old(self, ...)
 end)
 
--- Vẽ line từ tâm -> target
-local drawLine = Drawing.new("Line")
-drawLine.Color = Color3.fromRGB(0, 255, 0)
-drawLine.Thickness = 2
-drawLine.Transparency = 1
-
+-- clear trail sau 0.3s
 RunService.RenderStepped:Connect(function()
-    if CurrentTarget and CurrentTarget.Parent and CurrentTarget:IsDescendantOf(Workspace) then
-        local pos, vis = Cam:WorldToViewportPoint(CurrentTarget.Position)
-        if vis then
-            local center = Vector2.new(Cam.ViewportSize.X/2, Cam.ViewportSize.Y/2)
-            drawLine.From = center
-            drawLine.To = Vector2.new(pos.X, pos.Y)
-            drawLine.Visible = true
-        else
-            drawLine.Visible = false
+    for i, t in ipairs(BulletTrails) do
+        if tick() - t.Tick > 0.3 then
+            t.Line:Remove()
+            table.remove(BulletTrails, i)
         end
-    else
-        drawLine.Visible = false
     end
 end)

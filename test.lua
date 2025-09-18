@@ -721,30 +721,31 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
+
 local SilentAim = true
-local logFile = "SilentAimLog.txt"
+local logFile = "SilentAim_NoRay_Log.txt"
 
 if not isfile(logFile) then
-    writefile(logFile, "=== Silent Aim Rage Log Start ===\n")
+    writefile(logFile, "=== Silent Aim (no ray) Log Start ===\n")
 end
 
 local function log(msg)
     pcall(function()
-        appendfile(logFile, os.date("[%H:%M:%S] ") .. msg .. "\n")
+        appendfile(logFile, os.date("[%Y-%m-%d %H:%M:%S] ") .. tostring(msg) .. "\n")
     end)
 end
 
 local function getClosestHead()
     local closest, dist = nil, math.huge
-    local camPos = Workspace.CurrentCamera.CFrame.Position
+    local camPos = Workspace.CurrentCamera and Workspace.CurrentCamera.CFrame.Position or Vector3.new(0,0,0)
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= LP and p.Team ~= LP.Team and p.Character then
             local head = p.Character:FindFirstChild("Head")
             local humanoid = p.Character:FindFirstChild("Humanoid")
             if head and humanoid and humanoid.Health > 0 then
-                local mag = (head.Position - camPos).Magnitude
-                if mag < dist then
-                    dist = mag
+                local d = (head.Position - camPos).Magnitude
+                if d < dist then
+                    dist = d
                     closest = head
                 end
             end
@@ -753,31 +754,75 @@ local function getClosestHead()
     return closest
 end
 
-local mt = getrawmetatable(game)
+local function replaceVectorOrCFrame(v, head)
+    if not head then return v end
+    if typeof(v) == "Vector3" then
+        return head.Position
+    elseif typeof(v) == "CFrame" then
+        return CFrame.new(head.Position)
+    elseif typeof(v) == "Instance" and v:IsA("BasePart") then
+        local c = v.CFrame
+        c = CFrame.new(head.Position)
+        return c
+    elseif typeof(v) == "Ray" then
+        local newDir = (head.Position - v.Origin)
+        return Ray.new(v.Origin, newDir)
+    end
+    return v
+end
+
+local function deepReplace(tbl, head)
+    if typeof(tbl) ~= "table" then
+        return replaceVectorOrCFrame(tbl, head)
+    end
+    for k, v in pairs(tbl) do
+        if typeof(v) == "table" then
+            deepReplace(v, head)
+        else
+            local replaced = replaceVectorOrCFrame(v, head)
+            if replaced ~= v then
+                tbl[k] = replaced
+            end
+        end
+    end
+    return tbl
+end
+
+local ok, mt = pcall(function() return getrawmetatable(game) end)
+if not ok or not mt then
+    return
+end
+
 setreadonly(mt, false)
 local oldNamecall = mt.__namecall
-
 mt.__namecall = newcclosure(function(self, ...)
     local args = {...}
     local method = getnamecallmethod()
 
-    if SilentAim and self == Workspace and (method == "Raycast" or method == "FindPartOnRay" or method == "FindPartOnRayWithIgnoreList") then
-        local targetHead = getClosestHead()
-        if targetHead then
-            local origin, direction
-
-            if method == "Raycast" then
-                origin, direction = args[1], args[2]
-                local newDir = (targetHead.Position - origin).Unit * direction.Magnitude
-                log("Redirected Raycast → " .. targetHead.Parent.Name)
-                return oldNamecall(self, origin, newDir, args[3])
-            elseif method == "FindPartOnRay" or method == "FindPartOnRayWithIgnoreList" then
-                local ray = args[1]
-                local newDir = (targetHead.Position - ray.Origin).Unit * ray.Direction.Magnitude
-                local newRay = Ray.new(ray.Origin, newDir)
-                log("Redirected " .. method .. " → " .. targetHead.Parent.Name)
-                args[1] = newRay
-                return oldNamecall(self, unpack(args))
+    if SilentAim and (method == "FireServer" or method == "InvokeServer") then
+        local success, head = pcall(getClosestHead)
+        if success and head then
+            local replacedAny = false
+            for i = 1, #args do
+                local a = args[i]
+                if typeof(a) == "Vector3" or typeof(a) == "CFrame" or typeof(a) == "Ray" or (typeof(a) == "Instance" and a:IsA("BasePart")) then
+                    args[i] = replaceVectorOrCFrame(a, head)
+                    replacedAny = true
+                elseif typeof(a) == "table" then
+                    deepReplace(a, head)
+                    replacedAny = true
+                end
+            end
+            if replacedAny then
+                local ok2, res = pcall(function()
+                    log(("Redirected %s on %s -> %s (remote: %s)"):format(method, tostring(self), head.Parent.Name, tostring(self.Name)))
+                    return oldNamecall(self, unpack(args))
+                end)
+                if ok2 then
+                    return res
+                else
+                    return oldNamecall(self, ...)
+                end
             end
         end
     end
